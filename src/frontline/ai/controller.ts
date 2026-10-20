@@ -2,7 +2,7 @@ import { Random } from '../../core/random';
 import { PHYSICS, WEAPONS } from '../core/config';
 import { clamp, distance, type Action, type Controller, type Difficulty, type MatchState, type Soldier, type Vec, type WeaponId } from '../core/types';
 import { Navigator, nearestNode } from './navigation';
-import { chest, eye, lineOfSight, PERCEPTION, visibleEnemies, type EnemyMemory } from './perception';
+import { canSeeEnemy, chest, eye, lineOfSight, PERCEPTION, sightRange, visibleEnemies, type EnemyMemory } from './perception';
 
 export type TacticalState='patrol'|'attack'|'cover'|'retreat'|'reload'|'heal'|'resupply'|'capture'|'defend'|'investigate';
 export const AI_PROFILES=PERCEPTION;
@@ -63,7 +63,14 @@ export class TacticalAI implements Controller {
   const movement=this.navigator.getAction(state,soldier);
   const action:Action={...movement,...this.combat,...pulse};
   const slot=soldier.weapons[soldier.activeWeapon];
-  if(slot.ammo<=0||slot.reloadUntil>state.time)action.fire=false;
+  const enemy=state.soldiers.find(unit=>unit.id===this.selectedEnemy);
+  const weapon=WEAPONS[slot.id];
+  // Thinking stays scheduled, but safety never waits for the next reaction.
+  // Camera motion, an occluding wall or a disappearing target immediately
+  // invalidates a cached burst and any grenade decision from this frame.
+  const targetVisible=!!enemy&&canSeeEnemy(state,soldier,enemy)&&lineOfSight(state,{x:soldier.x,y:soldier.y-31},chest(enemy));
+  if(!targetVisible){this.combat.fire=false;action.fire=false;action.grenade=false;}
+  if(slot.ammo<=0||slot.reloadUntil>state.time||!enemy||enemy.protectedUntil>state.time||distance(soldier,enemy)>weapon.range*.96)action.fire=false;
   return action;
  }
 
@@ -169,7 +176,7 @@ export class TacticalAI implements Controller {
    this.tacticalState=state.flags.some(flag=>distance(flag,objective)<25&&flag.owner===soldier.team)?'defend':'capture';
   }
   if(!goal&&enemy){
-   const preferred=this.preferredRange(weapon.category);
+   const preferred=Math.min(this.preferredRange(weapon.category),sightRange(state,soldier)*.8);
    if(range<preferred*.42&&this.difficulty!=='recruit'){
     const away=Math.sign(soldier.x-enemy.x)||((soldier.id%2)?1:-1);
     goal={x:clamp(soldier.x+away*260,45,state.arena.width-45),y:soldier.y};this.tacticalState='retreat';

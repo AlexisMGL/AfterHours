@@ -1,6 +1,8 @@
 import { distance, type Action, type Arena, type MatchState, type NavEdge, type NavGraph, type NavNode, type Soldier, type Vec } from '../core/types';
+import { PHYSICS } from '../core/config';
 
 export interface NavigationPath { nodes:NavNode[];edges:NavEdge[];cost:number }
+interface Traversal {path:NavigationPath;index:number;phase:'approach'|'climb'|'exit'|'land'|'fall'}
 const graphOrigins=new WeakMap<NavGraph,Map<number,Vec>>();
 function origins(arena:Arena):Map<number,Vec>{
  let values=graphOrigins.get(arena.nav);
@@ -71,10 +73,12 @@ export class Navigator {
  private stuckFor=0;
  private jumpAt=-Infinity;
  private recoveredAt=-Infinity;
+ private traversal?:Traversal;
 
- reset():void {this.path=null;this.goal=undefined;this.graph=undefined;this.index=1;this.plannedAt=-Infinity;this.previous=undefined;this.checkedAt=0;this.stuckFor=0;this.jumpAt=-Infinity;this.recoveredAt=-Infinity;}
+ reset():void {this.path=null;this.goal=undefined;this.graph=undefined;this.index=1;this.plannedAt=-Infinity;this.previous=undefined;this.checkedAt=0;this.stuckFor=0;this.jumpAt=-Infinity;this.recoveredAt=-Infinity;this.traversal=undefined;}
  setGoal(state:MatchState,soldier:Soldier,goal:Vec):void {
-  if(this.goal&&distance(this.goal,goal)<60&&this.graph===state.arena.nav&&state.time-this.plannedAt<2&&this.path)return;
+  const traversing=this.traversal?.path===this.path&&this.traversal.phase!=='approach'&&(!soldier.grounded||soldier.climbing);
+  if(this.goal&&distance(this.goal,goal)<60&&this.graph===state.arena.nav&&(state.time-this.plannedAt<2||traversing)&&this.path)return;
   const risk=(node:NavNode):number=>{
    let value=0;
    for(const hazard of state.arena.hazards)if(hazard.damage>0&&hazard.starts<state.time+2&&hazard.ends>state.time&&node.x>hazard.x-20&&node.x<hazard.x+hazard.w+20&&node.y>hazard.y&&node.y<hazard.y+hazard.h+54)value+=1100;
@@ -82,9 +86,9 @@ export class Navigator {
    return value;
   };
   this.path=findRoute(state.arena,soldier,goal,soldier.grounded?soldier.platformId:undefined,risk);
-  this.goal={...goal};this.graph=state.arena.nav;this.index=1;this.plannedAt=state.time;
+  this.goal={...goal};this.graph=state.arena.nav;this.index=1;this.plannedAt=state.time;this.traversal=undefined;
  }
- clear():void {this.path=null;this.goal=undefined;}
+ clear():void {this.path=null;this.goal=undefined;this.traversal=undefined;}
  getAction(state:MatchState,soldier:Soldier):Action {
   if(!this.goal)return{};
   if(state.time-this.checkedAt>.9){
@@ -99,7 +103,7 @@ export class Navigator {
   while(this.index<path.nodes.length){
    const target=currentNode(state.arena,path.nodes[this.index]!);
    const edge=path.edges[this.index-1]!;
-   if(Math.abs(soldier.x-target.x)<24&&Math.abs(soldier.y-target.y)<12&&soldier.grounded)this.index++;
+   if(Math.abs(soldier.x-target.x)<24&&Math.abs(soldier.y-target.y)<12&&soldier.grounded&&soldier.platformId===target.platformId){this.index++;this.traversal=undefined;}
    else break;
   }
   if(this.index>=path.nodes.length){
@@ -109,7 +113,7 @@ export class Navigator {
   const source=currentNode(state.arena,path.nodes[this.index-1]!);
   const target=currentNode(state.arena,path.nodes[this.index]!);
   const edge=path.edges[this.index-1]!;
-  // A jump may land on an intervening one-way ledge before its nominal
+  // A jump may land on an intervening ledge before its nominal
   // destination. Replan from that real support instead of repeatedly jumping
   // on the higher ledge while trying to reach a lower cover top.
   if(soldier.grounded&&soldier.platformId!==null&&soldier.platformId!==source.platformId&&soldier.platformId!==target.platformId&&this.recoveredAt!==state.time){
@@ -119,11 +123,41 @@ export class Navigator {
   }
   const dx=target.x-soldier.x,dy=target.y-soldier.y;
   const move:Action['move']=Math.abs(dx)>10?(dx>0?1:-1):0;
+  // A replanned route may start on a nearby support while the body is still
+  // attached to its ladder. Jump free instead of hanging with zero climb input.
+  if(soldier.climbing&&edge.kind!=='ladder'&&edge.kind!=='drop'){
+   const jump=state.time-this.jumpAt>.65;if(jump)this.jumpAt=state.time;
+   return{move,jump};
+  }
   if(edge.kind==='ladder'){
-   const x=target.x;
-   if(Math.abs(soldier.x-x)>11&&!soldier.climbing)return{move:x>soldier.x?1:-1};
-   if(Math.abs(dy)<5&&soldier.grounded)return{};
-   return{climb:dy<0?-1:1};
+   const ladder=state.arena.ladders.find(value=>value.id===edge.ladderId);
+   const viaX=edge.viaX??(ladder?ladder.x+ladder.w/2:target.x),exitY=edge.exitY??target.y-32;
+   const direction:Action['climb']=target.y>source.y?1:-1;
+   const traversal=this.edgeTraversal(path);
+   const toward=(x:number,tolerance=3):Action['move']=>Math.abs(x-soldier.x)>tolerance?x>soldier.x?1:-1:0;
+   if(traversal.phase==='approach'){
+    if(Math.abs(soldier.x-viaX)>4)return{move:toward(viaX),climb:Math.abs(soldier.x-viaX)<32?direction:0};
+    traversal.phase='climb';
+   }
+   if(traversal.phase==='climb'){
+    const reached=direction<0?soldier.y<=exitY+1:soldier.y>=exitY-1;
+    if(!reached)return{climb:direction,move:toward(viaX)};
+    if(Math.abs(target.x-viaX)<8)return{climb:direction,move:toward(target.x)};
+    traversal.phase='exit';
+   }
+   if(traversal.phase==='exit'){
+    const platform=state.arena.platforms.find(value=>value.id===target.platformId);
+    const overLip=platform&&soldier.x>=platform.x+15&&soldier.x<=platform.x+platform.w-15;
+    if(overLip){traversal.phase='land';return{};}
+    // Keep the feet above the solid lip during the diagonal exit. Descending
+    // through its rectangle is never used as a shortcut to the landing.
+    return{climb:-1,move:toward(target.x,1)};
+   }
+   if(soldier.climbing){
+    const jump=state.time-this.jumpAt>.65;if(jump)this.jumpAt=state.time;
+    return{move:toward(target.x,8),jump};
+   }
+   return{move:soldier.grounded?toward(target.x,8):0};
   }
   if(edge.kind==='lift'){
    const currentPlatform=state.arena.platforms.find(platform=>platform.id===soldier.platformId);
@@ -137,15 +171,42 @@ export class Navigator {
    return{move,jump};
   }
   if(edge.kind==='jump'){
-   if(soldier.grounded&&Math.abs(soldier.y-source.y)<15&&Math.abs(soldier.x-source.x)>30)return{move:source.x>soldier.x?1:-1};
+   const destination=state.arena.platforms.find(platform=>platform.id===target.platformId);
+   const acrossDestination=destination&&soldier.y>destination.y+1&&soldier.y-54<destination.y+destination.h
+    &&Math.min(soldier.x,source.x)<destination.x+destination.w+14&&Math.max(soldier.x,source.x)>destination.x-14;
+   // A nearest-node replan can put the authored launch on the opposite side
+   // of a crate. Its near side is also a valid launch; walking to the far side
+   // first would press forever against the same solid crate.
+   if(soldier.grounded&&Math.abs(soldier.y-source.y)<15&&!acrossDestination){
+    const offset=source.x-soldier.x;
+    // Match the graph's standing launch: arriving at running speed can put
+    // the head below a solid foothold before the upward arc clears its side.
+    if(Math.abs(offset)>3){
+     const stopping=soldier.vx*soldier.vx/(2*PHYSICS.friction)+Math.abs(soldier.vx)/60+2;
+     return{move:offset*soldier.vx>0&&Math.abs(offset)<=stopping?0:offset>0?1:-1};
+    }
+    if(Math.abs(soldier.vx)>20)return{move:0};
+   }
    const jump=soldier.grounded&&state.time-this.jumpAt>.65;
    if(jump)this.jumpAt=state.time;
    return{move,jump};
   }
   if(edge.kind==='drop'){
    const platform=state.arena.platforms.find(surface=>surface.id===source.platformId);
-   return{move,drop:platform?.oneWay&&soldier.grounded};
+   const traversal=this.edgeTraversal(path),viaX=edge.viaX??(platform?(target.x<source.x?platform.x-24:platform.x+platform.w+24):target.x);
+   if(traversal.phase==='approach'){
+    const outside=!platform||soldier.x+14<=platform.x||soldier.x-14>=platform.x+platform.w;
+    if(!outside||Math.abs(soldier.x-viaX)>3)return{move:viaX>soldier.x?1:-1};
+    traversal.phase='fall';
+   }
+   const clear=!platform||soldier.y-54>=platform.y+platform.h||soldier.grounded&&soldier.platformId===target.platformId;
+   const x=clear?target.x:viaX;
+   return{move:Math.abs(x-soldier.x)>5?x>soldier.x?1:-1:0};
   }
   return{move,jump:this.stuckFor>1.5&&soldier.grounded&&state.time-this.jumpAt>.8};
+ }
+ private edgeTraversal(path:NavigationPath):Traversal {
+  if(this.traversal?.path!==path||this.traversal.index!==this.index)this.traversal={path,index:this.index,phase:'approach'};
+  return this.traversal;
  }
 }

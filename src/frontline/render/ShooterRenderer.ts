@@ -1,10 +1,16 @@
 import Phaser from 'phaser';
-import type { ClassId, MapId, MatchState, Platform, Rect, Soldier, Vec, WeaponId } from '../core/types';
+import type { MapId, MatchState, Platform, Rect, Soldier, Vec, WeaponId } from '../core/types';
 import { clamp } from '../core/types';
-import { CLASSES, WEAPONS } from '../core/config';
+import { WEAPONS } from '../core/config';
+import { eye, lineOfSight } from '../ai/perception';
+import { drawSoldierBody } from './SoldierArt';
+import { drawAircraftDecoration, drawAircraftPlatform, drawAircraftShell } from './AircraftArt';
+import { ViewportCache } from './ViewportCache';
+import { chooseGraphicsBackend,canvasCompatibleGraphics,type GraphicsBackend } from './GraphicsBackend';
+import { visibilityShadow } from './VisibilityShadow';
 
 export interface RenderOptions { quality:'low'|'medium'|'high';particles:boolean;shake:boolean;reducedMotion?:boolean }
-interface Actor { root:Phaser.GameObjects.Container;body:Phaser.GameObjects.Graphics;gun:Phaser.GameObjects.Image;label:Phaser.GameObjects.Text;lastAlive:boolean }
+interface Actor { root:Phaser.GameObjects.Container;body:Phaser.GameObjects.Graphics;gun:Phaser.GameObjects.Container;weapon:Phaser.GameObjects.Graphics;weaponId:WeaponId;label:Phaser.GameObjects.Text;lastAlive:boolean;lastGrounded:boolean;landAt:number }
 interface Particle extends Vec { vx:number;vy:number;life:number;max:number;size:number;color:number;gravity:number }
 const W=960,H=540;
 const BLUE=0x7ad7ed,RED=0xf28c85,INK=0x14212a;
@@ -16,7 +22,14 @@ export class ShooterRenderer {
   private game:Phaser.Game;
   private scene?:Phaser.Scene;
   private state?:MatchState;
+  private matchIdentity?:MatchState;
+  private hostPreparesView=false;
+  private preparedTick=-1;
+  private lastCameraTarget?:{id:number;x:number;y:number;alive:boolean;round:number};
   private options:RenderOptions;
+  private backend:GraphicsBackend;
+  private renderScale=2;
+  private cache?:ViewportCache;
   private camera:Rect={x:0,y:0,w:W,h:H};
   private followId=0;
   private cameraReady=false;
@@ -24,6 +37,8 @@ export class ShooterRenderer {
   private eventTick=-1;
   private map?:MapId;
   private structure='';
+  private sceneryCell='';
+  private staticView:Rect={x:0,y:0,w:W,h:H};
   private actors=new Map<number,Actor>();
   private particles:Particle[]=[];
   private bursts:{x:number;y:number;life:number;max:number;radius:number}[]=[];
@@ -33,45 +48,76 @@ export class ShooterRenderer {
   private geometry?:Phaser.GameObjects.Graphics;
   private world?:Phaser.GameObjects.Graphics;
   private effects?:Phaser.GameObjects.Graphics;
+  private shadow?:Phaser.GameObjects.Graphics;
+  private shadowSignature='';
   private weather?:Phaser.GameObjects.Graphics;
   private signs:Phaser.GameObjects.Text[]=[];
   private flags=new Map<number,Phaser.GameObjects.Text>();
+  private team:0|1=0;
+  private spotted=new Set<number>();
+  private visibleBodies=new Set<number>();
+  private alliedObservers:Soldier[]=[];
 
   constructor(container:HTMLElement,options:RenderOptions={quality:'high',particles:true,shake:true}) {
-    this.options={...options}; const owner=this;
+    this.options={...options};this.backend=chooseGraphicsBackend();this.renderScale=this.resolutionFor(options.quality);const owner=this;
     class ShooterScene extends Phaser.Scene {
       constructor(){super('frontline');}
       create():void{owner.initialize(this);}
       update(_time:number,delta:number):void{owner.paint(Math.min(.05,delta/1000));}
     }
-    this.game=new Phaser.Game({type:Phaser.AUTO,parent:container,width:W,height:H,transparent:true,banner:false,
+    this.game=new Phaser.Game({type:this.backend.canvas?Phaser.CANVAS:Phaser.AUTO,parent:container,width:W*this.renderScale,height:H*this.renderScale,transparent:false,backgroundColor:'#172c38',banner:false,
       antialias:true,pixelArt:false,roundPixels:false,audio:{noAudio:true},input:{keyboard:false},
-      scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:W,height:H},scene:ShooterScene,
+      scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH,width:W*this.renderScale,height:H*this.renderScale},scene:ShooterScene,
       render:{powerPreference:'high-performance'}});
   }
-  render(state:MatchState,_dt?:number):void{this.state=state;}
+  render(state:MatchState,_dt?:number):void{this.acceptState(state);}
+  /** The host calls this before its fixed substeps; painting never advances it a second time. */
+  prepareView(state:MatchState,dt:number):Rect{
+    this.acceptState(state);this.hostPreparesView=true;
+    if(this.preparedTick!==state.tick||!this.cameraReady||this.cameraDiscontinuity(state)){this.updateCamera(state,Math.max(0,Math.min(.15,dt)));this.preparedTick=state.tick;}
+    return this.getCamera();
+  }
+  private acceptState(state:MatchState):void{
+    if(this.matchIdentity!==state){
+      this.matchIdentity=state;this.state=state;this.cameraReady=false;this.hostPreparesView=false;this.preparedTick=-1;this.lastCameraTarget=undefined;
+      this.map=undefined;this.structure='';this.sceneryCell='';this.eventTick=-1;this.particles=[];this.bursts=[];
+      this.spotted.clear();this.visibleBodies.clear();this.alliedObservers=[];
+      for(const actor of this.actors.values())actor.root.destroy(true);this.actors.clear();
+      for(const sign of this.signs)sign.destroy();this.signs=[];for(const flag of this.flags.values())flag.destroy();this.flags.clear();
+      this.cache?.destroy();this.geometry?.clear();this.world?.clear();this.effects?.clear();this.weather?.clear();this.shadow?.clear();this.shadowSignature='';
+    }
+    this.state=state;
+  }
   follow(id:number):void{if(this.followId!==id){this.followId=id;this.cameraReady=false;}}
   getCamera():Rect{return {...this.camera};}
   screenToWorld(clientX:number,clientY:number):Vec{
     const rect=this.game.canvas.getBoundingClientRect();
     return {x:this.camera.x+(clientX-rect.left)*W/Math.max(1,rect.width),y:this.camera.y+(clientY-rect.top)*H/Math.max(1,rect.height)};
   }
-  setOptions(partial:Partial<RenderOptions>):void{this.options={...this.options,...partial};if(!this.options.particles)this.particles=[];}
-  destroy():void{this.game.destroy(true);this.particles=[];this.bursts=[];this.actors.clear();}
+  setOptions(partial:Partial<RenderOptions>):void{
+    this.options={...this.options,...partial};if(!this.options.particles)this.particles=[];
+    const resolution=this.resolutionFor(this.options.quality);
+    if(resolution!==this.renderScale){this.renderScale=resolution;this.game.scale.setGameSize(W*resolution,H*resolution);this.scene?.cameras.main.setOrigin(0,0).setZoom(resolution);this.structure='';this.sceneryCell='';}
+  }
+  private resolutionFor(quality:RenderOptions['quality']):number{return this.backend.canvas?1:quality==='high'?2:quality==='medium'?1.5:1;}
+  destroy():void{this.cache?.destroy();this.game.destroy(true);this.particles=[];this.bursts=[];this.actors.clear();}
 
   private initialize(scene:Phaser.Scene):void{
     this.scene=scene;
-    this.backdrop=scene.add.graphics().setDepth(-50).setScrollFactor(0);
-    this.far=scene.add.graphics().setDepth(-40).setScrollFactor(.16,.10);
-    this.near=scene.add.graphics().setDepth(-30).setScrollFactor(.38,.24);
-    this.geometry=scene.add.graphics().setDepth(0);
-    this.world=scene.add.graphics().setDepth(4);
-    this.effects=scene.add.graphics().setDepth(30);
-    this.weather=scene.add.graphics().setDepth(40).setScrollFactor(0);
-    const art=scene.make.graphics({x:0,y:0});
-    for(const id of Object.keys(WEAPONS) as WeaponId[]){art.clear();this.weaponArt(art,id);art.generateTexture(`fh-gun-${id}`,64,32);}
-    art.destroy();
+    this.cache=new ViewportCache(scene);
+    // A larger backing canvas with a matching camera zoom keeps gameplay at
+    // 960×540 world units while rendering vector contours sharply on large displays.
+    scene.cameras.main.setOrigin(0,0).setZoom(this.renderScale).setScroll(this.camera.x,this.camera.y);
+    this.backdrop=this.graphics().setDepth(-50).setScrollFactor(0);
+    this.far=this.graphics().setDepth(-40).setScrollFactor(.16,.10);
+    this.near=this.graphics().setDepth(-30).setScrollFactor(.38,.24);
+    this.geometry=this.graphics().setDepth(0);
+    this.world=this.graphics().setDepth(4);
+    this.effects=this.graphics().setDepth(30);
+    this.shadow=this.graphics().setDepth(35);
+    this.weather=this.graphics().setDepth(40).setScrollFactor(0);
   }
+  private graphics():Phaser.GameObjects.Graphics{const graphics=this.scene!.add.graphics();return this.backend.canvas?canvasCompatibleGraphics(graphics):graphics;}
 
   private weaponArt(g:Phaser.GameObjects.Graphics,id:WeaponId):void{
     const category=WEAPONS[id].category;
@@ -102,10 +148,18 @@ export class ShooterRenderer {
     const state=this.state,scene=this.scene;
     if(!state||!scene||!this.world||!this.effects||!this.weather)return;
     this.time+=dt;
-    if(this.map!==state.arena.id){this.map=state.arena.id;this.cameraReady=false;this.particles=[];this.bursts=[];this.background(state);this.structure='';}
-    const signature=state.arena.platforms.map(p=>`${p.id}:${Number(p.active)}`).join(',');
-    if(signature!==this.structure){this.structure=signature;this.drawGeometry(state);}
-    this.updateCamera(state,dt);
+    if(this.map!==state.arena.id){this.map=state.arena.id;if(!this.hostPreparesView)this.cameraReady=false;this.particles=[];this.bursts=[];this.structure='';this.sceneryCell='';}
+    if(!this.hostPreparesView)this.updateCamera(state,dt);
+    const cell=`${Math.floor(this.camera.x/240)}:${Math.floor(this.camera.y/160)}`;
+    if(cell!==this.sceneryCell){this.sceneryCell=cell;this.background(state);}
+    const signature=cell+':'+state.arena.platforms.filter(p=>!p.moving).map(p=>`${p.id}:${Number(p.active)}:${p.x}:${p.y}:${p.w}:${p.h}`).join(',');
+    if(signature!==this.structure){
+      this.structure=signature;
+      this.staticView={x:Math.floor(this.camera.x/240)*240-240,y:Math.floor(this.camera.y/160)*160-160,w:W+480,h:H+320};
+      this.drawGeometry(state);
+      this.cache!.capture('geometry',this.geometry!,this.staticView,this.renderScale);
+    }
+    this.updateVisibility(state);
     const g=this.world.clear(),fx=this.effects.clear();
     for(const platform of state.arena.platforms)if(platform.active&&platform.moving&&this.visible(platform,100))this.drawPlatform(g,platform,state.arena.id);
     this.drawHazards(g,state);
@@ -118,6 +172,9 @@ export class ShooterRenderer {
       if(state.tick<this.eventTick){this.particles=[];this.bursts=[];this.cameraReady=false;}
       this.eventTick=state.tick;
       for(const event of state.events){
+        const source=state.soldiers.find(s=>s.id===(event.type==='death'?event.targetId:event.soldierId));
+        if(source&&!this.soldierVisible(source)&&event.type!=='impact'&&event.type!=='explosion')continue;
+        if((event.type==='explosion'||event.type==='impact')&&!this.pointVisible(state,{x:event.x,y:event.y}))continue;
         if(event.type==='impact')this.emit(event.x,event.y,event.material==='wood'?0xb99567:event.material==='glass'?0xa6e9f3:0xffcc83,6,100,180);
         if(event.type==='land')this.emit(event.x,event.y-2,0xacb4ad,5,55,40);
         if(event.type==='shot'){
@@ -133,19 +190,66 @@ export class ShooterRenderer {
         }
       }
     }
-    this.drawParticles(fx,dt);this.drawWeather(state);
+    this.drawParticles(fx,dt);this.drawVisibilityShadow(state);this.drawWeather(state);
   }
 
   private updateCamera(state:MatchState,dt:number):void{
     const target=state.soldiers.find(s=>s.id===this.followId)??state.soldiers[0];if(!target)return;
+    if(this.cameraDiscontinuity(state))this.cameraReady=false;
     const lead=target.alive?Math.cos(target.aim)*105:0;
     const desiredX=clamp(target.x+lead-W*.5,0,Math.max(0,state.arena.width-W));
     const desiredY=clamp(target.y-145+Math.sin(target.aim)*35-H*.5,0,Math.max(0,state.arena.height-H));
     const blend=this.cameraReady?1-Math.exp(-dt*5.8):1;
     this.camera.x+=(desiredX-this.camera.x)*blend;this.camera.y+=(desiredY-this.camera.y)*blend;
-    this.cameraReady=true;this.scene!.cameras.main.setScroll(this.camera.x,this.camera.y);
+    this.lastCameraTarget={id:target.id,x:target.x,y:target.y,alive:target.alive,round:state.round};
+    this.cameraReady=true;this.scene?.cameras.main.setScroll(this.camera.x,this.camera.y);
+  }
+  private cameraDiscontinuity(state:MatchState):boolean{
+    const target=state.soldiers.find(s=>s.id===this.followId)??state.soldiers[0],previous=this.lastCameraTarget;
+    return !!target&&(!previous||previous.id!==target.id||previous.round!==state.round||(!previous.alive&&target.alive)||Math.abs(previous.x-target.x)>W*.5||Math.abs(previous.y-target.y)>H*.5);
   }
   private visible(rect:Rect,pad=0):boolean{return rect.x+rect.w>=this.camera.x-pad&&rect.x<=this.camera.x+W+pad&&rect.y+rect.h>=this.camera.y-pad&&rect.y<=this.camera.y+H+pad;}
+  private staticVisible(rect:Rect):boolean{const area=this.staticView;return rect.x+rect.w>=area.x&&rect.x<=area.x+area.w&&rect.y+rect.h>=area.y&&rect.y<=area.y+area.h;}
+  private layerVisible(rect:Rect,factor:number):boolean{return rect.x+rect.w>=this.camera.x*factor-220&&rect.x<=this.camera.x*factor+W+220&&rect.y+rect.h>=this.camera.y*factor-160&&rect.y<=this.camera.y*factor+H+160;}
+
+  private updateVisibility(state:MatchState):void{
+    const team=(state.soldiers.find(s=>s.id===this.followId)??state.soldiers.find(s=>s.human)??state.soldiers[0])?.team??0;
+    // One observer and at most fifteen targets: current-frame LOS prevents even
+    // a brief stale body/nameplate reveal after moving behind solid geometry.
+    this.team=team;this.spotted.clear();this.visibleBodies.clear();
+    const observer=state.soldiers.find(s=>s.id===this.followId);
+    this.alliedObservers=observer?.alive?[observer]:[];
+    if(observer)this.visibleBodies.add(observer.id);
+    if(observer?.alive){
+      const origin=eye(observer),fogRange=Math.hypot(W,H)*(1-clamp(state.weather.fog,0,1)*.4);
+      for(const soldier of state.soldiers){
+        const point={x:soldier.x,y:soldier.y-29};
+        if(!this.visible({x:soldier.x-14,y:soldier.y-63,w:28,h:66}))continue;
+        if(soldier.team!==team&&(!soldier.alive||Math.hypot(point.x-origin.x,point.y-origin.y)>fogRange))continue;
+        if(lineOfSight(state,origin,point)){this.visibleBodies.add(soldier.id);if(soldier.team!==team)this.spotted.add(soldier.id);}
+      }
+    }
+  }
+  private soldierVisible(soldier:Soldier):boolean{return this.visibleBodies.has(soldier.id);}
+  private drawVisibilityShadow(state:MatchState):void{
+    const observer=state.soldiers.find(s=>s.id===this.followId),origin=observer?.alive?eye(observer):undefined;
+    const range=Math.hypot(W,H)*(1-clamp(state.weather.fog,0,1)*.4);
+    const moving=state.arena.platforms.filter(p=>p.moving).map(p=>`${p.id}:${Number(p.active)}:${p.x}:${p.y}:${p.w}:${p.h}`).join(',');
+    const signature=`${origin?.x}:${origin?.y}:${this.camera.x}:${this.camera.y}:${range}:${this.structure}:${moving}`;
+    if(signature===this.shadowSignature)return;this.shadowSignature=signature;
+    const g=this.shadow!.clear().fillStyle(0x081420,.62).beginPath();
+    // Fill one compound path so Canvas antialiasing cannot leave bright seams
+    // between adjacent visibility wedges. WebGL batches the same subpaths.
+    for(const[a,b,c]of visibilityShadow(this.camera,origin,state.arena.platforms,range))g.moveTo(a.x,a.y).lineTo(b.x,b.y).lineTo(c.x,c.y).closePath();
+    g.fillPath();
+  }
+  private pointVisible(state:MatchState,point:Vec):boolean{
+    if(!this.visible({x:point.x,y:point.y,w:1,h:1}))return false;
+    return this.alliedObservers.some(ally=>{
+      const origin=eye(ally),dx=point.x-origin.x,dy=point.y-origin.y,d=Math.hypot(dx,dy);
+      return d<=Math.hypot(W,H)*(1-clamp(state.weather.fog,0,1)*.4)&&lineOfSight(state,origin,{x:point.x-dx/Math.max(1,d)*2,y:point.y-dy/Math.max(1,d)*2});
+    });
+  }
 
   private background(state:MatchState):void{
     const bg=this.backdrop!.clear(),far=this.far!.clear(),near=this.near!.clear();
@@ -155,17 +259,17 @@ export class ShooterRenderer {
     far.fillStyle(hex(p.far));near.fillStyle(hex(p.near));
     if(map==='forest'){
       far.fillStyle(0x627b79,.4).fillTriangle(-120,450,350,130,820,450).fillTriangle(400,460,930,75,1400,460).fillTriangle(1100,460,1650,190,2200,460);
-      for(let i=0;i<34;i++)this.tree(far,i*115,430,145+(i*73)%180,0x344e4e,.75);
-      for(let i=0;i<45;i++)this.tree(near,i*119,660,170+(i*37)%220,i%2?0x223e39:0x2a4941,.92);
+      for(let i=0;i<34;i++)if(this.layerVisible({x:i*115-150,y:30,w:300,h:450},.16))this.tree(far,i*115,430,145+(i*73)%180,0x344e4e,.75);
+      for(let i=0;i<45;i++)if(this.layerVisible({x:i*119-150,y:80,w:300,h:590},.38))this.tree(near,i*119,660,170+(i*37)%220,i%2?0x223e39:0x2a4941,.92);
       near.fillStyle(0x233c35).fillRect(0,610,5000,600);
-      for(let i=0;i<20;i++){near.fillStyle(0x5c7564,.25).fillEllipse(i*240+70,580,290,100);}
+      for(let i=0;i<20;i++)if(this.layerVisible({x:i*240-80,y:530,w:290,h:100},.38)){near.fillStyle(0x5c7564,.25).fillEllipse(i*240+70,580,290,100);}
     }else if(map==='city'){
       for(let i=0;i<35;i++){
-        const x=i*145,h=130+(i*67)%220;far.fillStyle(i%2?0x34434f:0x2b3d49).fillRect(x,440-h,130,h+400);
+        const x=i*145,h=130+(i*67)%220;if(!this.layerVisible({x,y:440-h,w:130,h:h+400},.16))continue;far.fillStyle(i%2?0x34434f:0x2b3d49).fillRect(x,440-h,130,h+400);
         for(let a=0;a<4;a++)for(let b=0;b<Math.floor(h/30);b++)far.fillStyle((a+b+i)%4===0?0xd5b985:0x5e727b,(a+b+i)%4===0?.35:.22).fillRect(x+16+a*27,455-h+b*29,10,16);
       }
       for(let i=0;i<17;i++){
-        const x=i*290,h=200+(i*83)%190;near.fillStyle(0x26343e).fillRect(x,590-h,260,h+500);
+        const x=i*290,h=200+(i*83)%190;if(!this.layerVisible({x,y:590-h,w:260,h:h+500},.38))continue;near.fillStyle(0x26343e).fillRect(x,590-h,260,h+500);
         near.fillStyle(0x58686c,.3).fillRect(x,590-h,260,8);
         near.lineStyle(2,0x1c303b).lineBetween(x+35,590-h,x+35,590);
         near.fillStyle(0x86a4a4,.22).fillRect(x+55,620-h,45,55).fillRect(x+130,620-h,45,55);
@@ -174,11 +278,11 @@ export class ShooterRenderer {
     }else if(map==='harbor'){
       far.fillStyle(0x294b5a).fillRect(0,390,5000,500);
       for(let i=0;i<12;i++){
-        const x=i*390;far.fillStyle(0x344c56).fillTriangle(x,382,x+330,382,x+280,426).fillRect(x+80,350,165,35);
+        const x=i*390;if(!this.layerVisible({x,y:275,w:330,h:160},.16))continue;far.fillStyle(0x344c56).fillTriangle(x,382,x+330,382,x+280,426).fillRect(x+80,350,165,35);
         far.fillStyle(0x7f8170,.5).fillRect(x+230,315,45,40);far.fillStyle(0x425e68).fillRect(x+250,275,5,40);
       }
       for(let i=0;i<11;i++){
-        const x=i*470;near.lineStyle(9,0x344a53).lineBetween(x+90,540,x+90,145).lineBetween(x+90,150,x+340,150).lineBetween(x+90,150,x+215,70).lineBetween(x+215,70,x+340,150);
+        const x=i*470;if(!this.layerVisible({x,y:70,w:450,h:640},.38))continue;near.lineStyle(9,0x344a53).lineBetween(x+90,540,x+90,145).lineBetween(x+90,150,x+340,150).lineBetween(x+90,150,x+215,70).lineBetween(x+215,70,x+340,150);
         near.lineStyle(2,0x6d827f,.45).lineBetween(x+290,150,x+290,360);near.fillStyle(0x5d675d).fillRect(x+265,360,50,37);
         near.fillStyle(0x233b46).fillRect(x,505,450,200);
       }
@@ -186,7 +290,7 @@ export class ShooterRenderer {
       far.fillStyle(0x183e52).fillRect(0,365,5000,700);
       far.fillStyle(0x789ca4,.25).fillTriangle(180,385,280,370,450,385).fillTriangle(650,379,800,363,1000,379);
       for(let i=0;i<10;i++){
-        const x=i*510;near.fillStyle(0x273f4a).fillRect(x+30,400,330,320).fillRect(x+100,290,230,110).fillRect(x+170,230,130,60);
+        const x=i*510;if(!this.layerVisible({x,y:120,w:360,h:600},.38))continue;near.fillStyle(0x273f4a).fillRect(x+30,400,330,320).fillRect(x+100,290,230,110).fillRect(x+170,230,130,60);
         near.fillStyle(0x78999e,.4).fillRect(x+180,241,24,25).fillRect(x+211,241,24,25).fillRect(x+242,241,42,25);
         near.lineStyle(4,0x607a81,.55).lineBetween(x+239,230,x+239,120).lineBetween(x+192,166,x+286,166);
         near.lineStyle(2,0x879e9d,.45).strokeEllipse(x+238,148,70,17);
@@ -194,31 +298,21 @@ export class ShooterRenderer {
       }
     }else if(map==='factory'){
       for(let i=0;i<19;i++){
-        const x=i*270,h=120+(i*79)%180;far.fillStyle(0x293b43).fillRect(x,440-h,250,h+350);
+        const x=i*270,h=120+(i*79)%180;if(!this.layerVisible({x,y:140,w:250,h:650},.16))continue;far.fillStyle(0x293b43).fillRect(x,440-h,250,h+350);
         far.fillStyle(0x3b4c50).fillRoundedRect(x+30,190,34,250,9).fillRoundedRect(x+85,250,26,190,7);
         far.lineStyle(11,0x485858,.7).lineBetween(x+40,300,x+170,300).lineBetween(x+170,300,x+170,440);
       }
       for(let i=0;i<16;i++){
-        const x=i*330;near.fillStyle(0x23323a).fillRect(x+20,430,240,250);
+        const x=i*330;if(!this.layerVisible({x,y:190,w:290,h:490},.38))continue;near.fillStyle(0x23323a).fillRect(x+20,430,240,250);
         near.fillStyle(0x695841,.55).fillRoundedRect(x+50,475,160,75,12);
         near.fillStyle(0xe2a36b,.25).fillRoundedRect(x+62,489,135,48,8);
         near.lineStyle(15,0x3c4c50).lineBetween(x,600,x,190).lineBetween(x,190,x+290,190);
       }
-    }else{
-      bg.fillStyle(0x8caaad,.2).fillEllipse(340,170,450,85).fillEllipse(800,70,330,90);
-      far.fillStyle(0x283d4a,.8).fillRoundedRect(-200,-100,5200,900,170);
-      for(let i=0;i<24;i++){
-        const x=i*230;far.fillStyle(0x132a39).fillRoundedRect(x+35,145,110,160,48);
-        far.fillStyle(0x9eb4b6,.55).fillRoundedRect(x+40,150,100,150,43);
-        far.fillStyle(0xe7d8b1,.3).fillEllipse(x+90,175,88,30);far.fillStyle(0x668b9c,.4).fillTriangle(x+42,300,x+140,218,x+140,300);
-      }
-      for(let i=0;i<18;i++){
-        const x=i*310;near.lineStyle(17,0x3d5159,.7).strokeRoundedRect(x,-160,275,880,115);
-        near.lineStyle(3,0x8a9b9a,.3).strokeRoundedRect(x+10,-140,255,840,105);
-        near.fillStyle(0x233944,.6).fillRect(x+20,620,220,400);
-      }
-    }
+    }else drawAircraftShell(bg,far,near,state.arena.width,this.camera);
     bg.fillStyle(0xffffff,.025).fillEllipse(220,50,500,400);
+    this.cache!.capture('sky',bg,{x:0,y:0,w:W,h:H},this.renderScale,0,0);
+    this.cache!.capture('far',far,{x:this.camera.x*.16-160,y:this.camera.y*.1-120,w:W+320,h:H+240},this.renderScale,.16,.1);
+    this.cache!.capture('near',near,{x:this.camera.x*.38-160,y:this.camera.y*.24-120,w:W+320,h:H+240},this.renderScale,.38,.24);
   }
 
   private tree(g:Phaser.GameObjects.Graphics,x:number,y:number,h:number,c:number,alpha:number):void{
@@ -229,16 +323,35 @@ export class ShooterRenderer {
 
   private drawGeometry(state:MatchState):void{
     const g=this.geometry!.clear();for(const sign of this.signs)sign.destroy();this.signs=[];
+    if(state.arena.id==='aircraft'){
+      for(const section of state.arena.sections??[]){
+        if(!this.staticVisible({x:section.x,y:0,w:section.w,h:state.arena.height}))continue;
+        g.fillStyle(hex(section.color),.12).fillRect(section.x,0,section.w,state.arena.height);
+        g.lineStyle(1,hex(section.accent),.1).lineBetween(section.x,80,section.x,state.arena.height);
+      }
+      for(const decoration of state.arena.decorations??[]){
+        if(!this.staticVisible(decoration))continue;
+        drawAircraftDecoration(g,decoration);
+        if(decoration.label&&(decoration.kind==='sign'||decoration.kind==='panel')){
+          const label=this.scene!.add.text(decoration.x+decoration.w*.5,decoration.y+decoration.h*.48,decoration.label,{fontFamily:'sans-serif',fontSize:decoration.kind==='sign'?'11px':'8px',fontStyle:'bold',color:decoration.accent??'#a9c1c0',resolution:2}).setOrigin(.5).setAlpha(.7).setDepth(1);
+          this.signs.push(label);
+        }
+      }
+    }
     for(const ladder of state.arena.ladders){
+      if(!this.staticVisible(ladder))continue;
       g.lineStyle(6,0x182a35).lineBetween(ladder.x+5,ladder.y,ladder.x+5,ladder.y+ladder.h).lineBetween(ladder.x+ladder.w-5,ladder.y,ladder.x+ladder.w-5,ladder.y+ladder.h);
       g.lineStyle(3,0x91a4a5).lineBetween(ladder.x+5,ladder.y,ladder.x+5,ladder.y+ladder.h).lineBetween(ladder.x+ladder.w-5,ladder.y,ladder.x+ladder.w-5,ladder.y+ladder.h);
       for(let y=ladder.y+7;y<ladder.y+ladder.h;y+=17)g.lineStyle(3,0x809696).lineBetween(ladder.x+5,y,ladder.x+ladder.w-5,y);
     }
-    for(const platform of state.arena.platforms)if(platform.active&&!platform.moving)this.drawPlatform(g,platform,state.arena.id);
+    for(const platform of state.arena.platforms)if(platform.active&&!platform.moving&&this.staticVisible(platform)){
+      this.drawPlatform(g,platform,state.arena.id);
+    }
     const map=state.arena.id;
     for(let i=0;i<state.arena.width/700;i++){
       const x=i*700+170,y=170+(i%3)*300;
-      if(map==='forest')continue;
+      if(map==='forest'||map==='aircraft')continue;
+      if(!this.staticVisible({x,y,w:210,h:28}))continue;
       g.fillStyle(0x122732,.85).fillRoundedRect(x,y,210,28,3);g.lineStyle(1,0xa9b7b0,.25).strokeRoundedRect(x,y,210,28,3);
       const text=this.scene!.add.text(x+105,y+14,`${OFFICERS[map].split(' / ')[0]}  ${String(i+1).padStart(2,'0')}`,{fontFamily:'sans-serif',fontSize:'10px',fontStyle:'bold',color:'#a8bdb8'}).setOrigin(.5).setDepth(-1);
       this.signs.push(text);
@@ -246,6 +359,7 @@ export class ShooterRenderer {
   }
 
   private drawPlatform(g:Phaser.GameObjects.Graphics,p:Platform,map:MapId):void{
+    if(map==='aircraft'&&drawAircraftPlatform(g,p,this.staticView))return;
     const{x,y,w,h}=p;const steel=p.material==='metal',wood=p.material==='wood',glass=p.material==='glass';
     const body=glass?0x739da7:wood?0x645749:map==='forest'?0x4e5e55:map==='city'?0x4f5657:hex(this.state!.arena.palette.ground);
     g.fillStyle(0x0d202b,.55).fillRoundedRect(x+3,y+5,w,Math.max(6,h),2);
@@ -255,7 +369,7 @@ export class ShooterRenderer {
     if(glass){g.lineStyle(2,0xc0f0ee,.5).lineBetween(x+5,y+h-2,x+Math.min(w-3,35),y+3).lineBetween(x+w*.6,y+h-3,x+w*.8,y+3);return;}
     if(p.oneWay){
       g.lineStyle(2,0x263a41,.75);
-      for(let a=x+14;a<x+w;a+=40)g.lineBetween(a,y+5,a+16,y+Math.min(17,h));
+      for(let a=x+14;a<x+w;a+=40)g.lineBetween(a,y+5,Math.min(a+16,x+w),y+Math.min(17,h));
       if(map==='forest'){g.fillStyle(0xb39b6a,.5);for(let a=x+5;a<x+w;a+=27)g.fillRect(a,y,2,Math.min(12,h));}
     }else{
       for(let a=x+12;a<x+w;a+=steel?90:75){
@@ -282,85 +396,36 @@ export class ShooterRenderer {
   private drawSoldier(s:Soldier,state:MatchState):void{
     let actor=this.actors.get(s.id);
     if(!actor){
-      const root=this.scene!.add.container(s.x,s.y).setDepth(12),body=this.scene!.add.graphics();
-      const gun=this.scene!.add.image(0,-34,`fh-gun-${s.weapons[s.activeWeapon].id}`).setOrigin(20/64,.5);
-      const label=this.scene!.add.text(0,-79,s.name,{fontFamily:'sans-serif',fontSize:'10px',fontStyle:'bold',color:s.team===0?'#b9e4ed':'#f6b3ad',stroke:'#13232d',strokeThickness:3}).setOrigin(.5);
-      root.add([body,gun,label]);actor={root,body,gun,label,lastAlive:s.alive};this.actors.set(s.id,actor);
+      const root=this.scene!.add.container(s.x,s.y).setDepth(12),body=this.graphics();
+      const weapon=this.graphics().setPosition(-20,-16),gun=this.scene!.add.container(0,-34,[weapon]);
+      this.weaponArt(weapon,s.weapons[s.activeWeapon].id);
+      const label=this.scene!.add.text(0,-83,s.name,{fontFamily:'sans-serif',fontSize:'10px',fontStyle:'bold',color:s.team===0?'#b9e4ed':'#f6b3ad',stroke:'#13232d',strokeThickness:3,resolution:2}).setOrigin(.5);
+      root.add([body,gun,label]);actor={root,body,gun,weapon,weaponId:s.weapons[s.activeWeapon].id,label,lastAlive:s.alive,lastGrounded:s.grounded,landAt:-10};this.actors.set(s.id,actor);
     }
     const deathAge=state.time-s.deathAt;
-    const visible=this.visible({x:s.x-45,y:s.y-90,w:90,h:100},70)&&(s.alive||deathAge<.7);
-    actor.root.setVisible(visible);actor.lastAlive=s.alive;if(!visible)return;
+    const visible=this.soldierVisible(s)&&this.visible({x:s.x-45,y:s.y-94,w:90,h:104},70)&&(s.alive||deathAge<.7);
+    actor.root.setVisible(visible);actor.label.setVisible(visible&&s.alive);actor.gun.setVisible(visible&&s.alive);actor.lastAlive=s.alive;if(!visible)return;
     actor.root.setPosition(s.x,s.y).setAlpha(s.alive?1:clamp(1-deathAge/.7,0,1));
     actor.root.setRotation(!s.alive&&!this.options.reducedMotion?Math.min(1,deathAge*4)*(Math.cos(s.aim)>=0?1:-1)*1.35:0);
     const g=actor.body.clear(),team=s.team===0?BLUE:RED,face=Math.cos(s.aim)>=0?1:-1;
-    const active=s.abilityUntil>state.time,focus=state.soldiers.find(p=>p.id===this.followId)?.classId==='sniper'&&(state.soldiers.find(p=>p.id===this.followId)?.abilityUntil??0)>state.time;
-    const uniform=s.team===0?0x405c68:0x70544c,light=s.team===0?0x66838a:0x927363;
-    const run=s.grounded&&Math.abs(s.vx)>12&&!this.options.reducedMotion?Math.sin(this.time*13+ s.id)*Math.min(1,Math.abs(s.vx)/200):0;
-    const bob=s.grounded?Math.abs(run)*1.4:0;
-    const hurt=s.hurtUntil>state.time;
-    const skin=hurt?0xffe1c7:0xc5aa87;
-    if(s.grounded)g.fillStyle(0x06131d,.3).fillEllipse(0,1,34,9);
-    if(s.protectedUntil>state.time){g.lineStyle(2,team,.5).strokeEllipse(0,-30,47,69);g.fillStyle(team,.055).fillEllipse(0,-30,47,69);}
-    if(focus&&s.team===1){g.lineStyle(2,0xe4c7ff,.75).strokeRoundedRect(-18,-61,36,64,12);}
-    const airborne=s.grounded?0:s.vy<0?1:-1;
-    const footA={x:-7+run*10+(airborne?6:0),y:airborne?-7:0},footB={x:7-run*10-(airborne?4:0),y:airborne?-3:0};
-    this.limb(g,{x:-6,y:-22-bob},{x:-8-run*6,y:-11+(airborne?-3:0)},8,uniform);
-    this.limb(g,{x:-8-run*6,y:-11+(airborne?-3:0)},footA,7,light);
-    this.limb(g,{x:6,y:-22-bob},{x:7+run*6,y:-10+(airborne?-2:0)},8,uniform);
-    this.limb(g,{x:7+run*6,y:-10+(airborne?-2:0)},footB,7,light);
-    g.fillStyle(0x1b2c34).fillRoundedRect(footA.x-5,footA.y-3,12,6,3).fillRoundedRect(footB.x-5,footB.y-3,12,6,3);
-    // Chest plate, belt and class gear create four distinct silhouettes.
-    g.lineStyle(2,INK).fillStyle(uniform).fillRoundedRect(-12,-39-bob,24,21,6).strokeRoundedRect(-12,-39-bob,24,21,6);
-    g.fillStyle(light).fillRoundedRect(-8,-37-bob,17,14,4);g.fillStyle(0x20343d).fillRoundedRect(-10,-25-bob,21,6,2);
-    g.fillStyle(0xa2a58b).fillRect(-7,-24-bob,4,4).fillRect(1,-24-bob,4,4);
-    g.fillStyle(team).fillRoundedRect(-10,-38-bob,6,10,2);
-    if(s.classId==='support'){
-      g.fillStyle(0x304c43).fillRoundedRect(-face*17-5,-39,11,23,4);g.lineStyle(2,0x172d31).strokeRoundedRect(-face*17-5,-39,11,23,4);
-      g.fillStyle(0xd5e5c7).fillRect(-face*17-3,-32,7,3).fillRect(-face*17-1,-34,3,7);
-    }else if(s.classId==='defense'){
-      g.fillStyle(0x6d8185).fillRoundedRect(-17,-40,34,13,5);g.lineStyle(2,INK).strokeRoundedRect(-17,-40,34,13,5);
-      g.fillStyle(team).fillRect(-14,-38,7,4).fillRect(7,-38,7,4);
-    }else if(s.classId==='sniper'){
-      g.fillStyle(0x526557).fillTriangle(-13,-40,-20,-17,6,-22);g.lineStyle(1,0x839078,.6).lineBetween(-11,-35,-15,-21);
-    }else{g.fillStyle(0xd4b67b).fillRoundedRect(-6,-35,5,8,1);}
-    // Neck, face, sculpted helmet, chin and earpiece remain readable at gameplay scale.
-    g.fillStyle(skin).fillRoundedRect(-4,-46-bob,8,9,2).fillEllipse(face*2,-47-bob,19,21);
-    g.fillStyle(0x9f866d).fillEllipse(-face*8,-46-bob,5,8);
-    g.fillStyle(s.classId==='sniper'?0x5b6d58:uniform).fillRoundedRect(-13,-59-bob,26,17,9);
-    g.lineStyle(2,INK).strokeRoundedRect(-13,-59-bob,26,17,9);
-    g.fillStyle(light).fillRoundedRect(-10,-57-bob,17,5,3);
-    g.fillStyle(0x1c3039).fillRoundedRect(face>0?-2:-11,-50-bob,14,6,2);
-    g.fillStyle(team).fillRoundedRect(face>0?1:-10,-49-bob,10,2,1);
-    g.fillStyle(0x314852).fillEllipse(-face*9,-47-bob,7,10);g.fillStyle(0xaab5a5).fillCircle(-face*9,-47-bob,2);
-    g.fillStyle(skin).fillTriangle(face*9,-46-bob,face*14,-44-bob,face*9,-42-bob);
-    g.fillStyle(0x384b4c).fillRoundedRect(-3,-42-bob,11,4,2);
-    const weapon=s.weapons[s.activeWeapon],reload=weapon.reloadUntil>state.time;
+    const viewer=state.soldiers.find(p=>p.id===this.followId);
+    const focus=viewer?.classId==='sniper'&&(viewer.abilityUntil??0)>state.time;
+    if(s.grounded&&!actor.lastGrounded)actor.landAt=this.time;
+    actor.lastGrounded=s.grounded;
+    const landing=this.options.reducedMotion?0:Math.max(0,1-(this.time-actor.landAt)/.13)*2;
+    drawSoldierBody(g,s,this.time,state.time,!!this.options.reducedMotion,focus&&s.team!==this.team,landing);
+    const slot=s.weapons[s.activeWeapon],reload=slot.reloadUntil>state.time;
     const recoil=state.time-s.lastShotAt<.09?(1-clamp((state.time-s.lastShotAt)/.09,0,1))*3:0;
-    const shoulder={x:face*2,y:-34-bob},hand={x:Math.cos(s.aim)*(18-recoil),y:-34+Math.sin(s.aim)*(18-recoil)-bob};
-    const elbow={x:face*2+Math.cos(s.aim)*8,y:-23+Math.sin(s.aim)*7-bob};
-    this.limb(g,shoulder,elbow,8,light);this.limb(g,elbow,hand,7,uniform);g.fillStyle(skin).fillCircle(hand.x,hand.y,4);
-    const offHand=reload?{x:face*(7+Math.sin(this.time*16)*3),y:-22-bob}:{x:Math.cos(s.aim)*11,y:-34+Math.sin(s.aim)*11+5-bob};
-    this.limb(g,{x:-face*7,y:-33-bob},{x:-face*4,y:-24-bob},7,uniform);this.limb(g,{x:-face*4,y:-24-bob},offHand,6,light);g.fillStyle(skin).fillCircle(offHand.x,offHand.y,3.5);
-    const category=WEAPONS[weapon.id].category;
-    const authoredTip=weapon.id==='hush'?48:category==='pistol'?37:['lmg','sniper','launcher'].includes(category)?55:category==='rocket'?57:49;
+    if(actor.weaponId!==slot.id){actor.weapon.clear();this.weaponArt(actor.weapon,slot.id);actor.weaponId=slot.id;}
+    const category=WEAPONS[slot.id].category;
+    const authoredTip=slot.id==='hush'?48:category==='pistol'?37:['lmg','sniper','launcher'].includes(category)?55:category==='rocket'?57:49;
     const gunAdvance=32-(authoredTip-20)-recoil;
-    actor.gun.setTexture(`fh-gun-${weapon.id}`).setPosition(Math.cos(s.aim)*gunAdvance,-34-bob+Math.sin(s.aim)*gunAdvance).setRotation(s.aim+(reload?face*.18:0)).setScale(1,face).setVisible(s.alive);
-    actor.label.setText(s.human?'YOU  /  '+s.name:s.name).setPosition(0,-80).setAlpha(s.alive?1:0);
-    g.fillStyle(0x0e222e,.85).fillRoundedRect(-21,-70,42,4,2);g.fillStyle(team).fillRoundedRect(-21,-70,42*clamp(s.health/s.maxHealth,0,1),4,2);
-    if(s.team===0){g.fillStyle(team).fillPoints([{x:-3,y:-88},{x:0,y:-91},{x:3,y:-88},{x:0,y:-85}],true);}
-    else g.fillStyle(team).fillTriangle(-3,-90,3,-90,0,-84);
-    if(s.human)g.lineStyle(1,0xffffff,.8).strokeCircle(0,-88,5);
-    if(active){
-      const c=hex(CLASSES[s.classId].color);
-      if(s.classId==='defense'&&s.shieldHealth>0){const sx=face*26;g.fillStyle(0x7bbbd9,.22).fillRoundedRect(sx-4,-54,8,49,3);g.lineStyle(2,0xade1ef,.9).strokeRoundedRect(sx-4,-54,8,49,3);g.lineStyle(2,0x7ca9ba,.6).lineBetween(sx-3,-38,sx+3,-38);}
-      else{g.lineStyle(1.5,c,.55).strokeEllipse(0,-30,40,64);g.fillStyle(c,.06).fillEllipse(0,-30,40,64);}
-    }
-    if(hurt){g.lineStyle(2,0xffc3a7,.8).strokeEllipse(0,-31,37,61);}
-  }
-
-  private limb(g:Phaser.GameObjects.Graphics,a:Vec,b:Vec,width:number,c:number):void{
-    g.lineStyle(width+3,INK).lineBetween(a.x,a.y,b.x,b.y);g.fillStyle(INK).fillCircle(a.x,a.y,(width+3)/2).fillCircle(b.x,b.y,(width+3)/2);
-    g.lineStyle(width,c).lineBetween(a.x,a.y,b.x,b.y);g.fillStyle(c).fillCircle(a.x,a.y,width/2).fillCircle(b.x,b.y,width/2);
+    actor.gun.setPosition(Math.cos(s.aim)*gunAdvance,-34+Math.sin(s.aim)*gunAdvance).setRotation(s.aim+(reload?face*.18:0)).setScale(1,face).setVisible(s.alive);
+    actor.label.setText(s.human?'YOU  /  '+s.name:s.name).setPosition(0,-83).setAlpha(s.alive?1:0);
+    g.fillStyle(0x0e222e,.85).fillRoundedRect(-21,-73,42,4,2);g.fillStyle(team).fillRoundedRect(-21,-73,42*clamp(s.health/s.maxHealth,0,1),4,2);
+    if(s.team===0)g.fillStyle(team).fillPoints([{x:-3,y:-91},{x:0,y:-94},{x:3,y:-91},{x:0,y:-88}],true);
+    else g.fillStyle(team).fillTriangle(-3,-93,3,-93,0,-87);
+    if(s.human)g.lineStyle(1,0xffffff,.8).strokeCircle(0,-91,5);
   }
 
   private drawObjects(g:Phaser.GameObjects.Graphics,state:MatchState):void{
@@ -381,6 +446,7 @@ export class ShooterRenderer {
       if(loot.weapon)g.lineStyle(2,0xc3adf0).lineBetween(loot.x-13,loot.y-17,loot.x+13,loot.y-17);
     }
     for(const station of state.stations){
+      if(station.team!==this.team&&!this.pointVisible(state,{x:station.x,y:station.y-10}))continue;
       const c=station.team===0?0x83d6a6:0xf1b291;
       g.fillStyle(c,.055).fillEllipse(station.x,station.y-5,250,95);g.lineStyle(1,c,.18).strokeEllipse(station.x,station.y-5,250,95);
       g.fillStyle(0x203d36).fillRoundedRect(station.x-15,station.y-20,30,20,4);g.lineStyle(2,c,.8).strokeRoundedRect(station.x-15,station.y-20,30,20,4);
@@ -423,17 +489,21 @@ export class ShooterRenderer {
 
   private drawCombat(g:Phaser.GameObjects.Graphics,state:MatchState):void{
     for(const tracer of state.tracers){
+      const owner=state.soldiers.find(s=>s.id===tracer.owner);
+      if(owner&&!this.soldierVisible(owner))continue;
       const life=clamp((tracer.until-state.time)/.085,0,1);g.lineStyle(3,0xf1c987,life*.15).lineBetween(tracer.from.x,tracer.from.y,tracer.to.x,tracer.to.y);
       g.lineStyle(1.2,0xffe0a0,life*.8).lineBetween(tracer.from.x,tracer.from.y,tracer.to.x,tracer.to.y);
     }
     for(const s of state.soldiers){
-      if(!s.alive||state.time-s.lastShotAt>.055)continue;
+      if(!s.alive||!this.soldierVisible(s)||state.time-s.lastShotAt>.055)continue;
       const x=s.x+Math.cos(s.aim)*33,y=s.y-34+Math.sin(s.aim)*33;
       const a=s.aim;const point=(along:number,side:number):Vec=>({x:x+Math.cos(a)*along-Math.sin(a)*side,y:y+Math.sin(a)*along+Math.cos(a)*side});
       g.fillStyle(0xffc67a,.9).fillPoints([point(0,-3),point(6,-8),point(7,-3),point(20,0),point(7,3),point(6,8),point(0,3)],true);
       g.fillStyle(0xfff1cb).fillCircle(x+Math.cos(a)*5,y+Math.sin(a)*5,4);
     }
     for(const projectile of state.projectiles){
+      const owner=state.soldiers.find(s=>s.id===projectile.owner);
+      if(owner?.team!==this.team&&!this.pointVisible(state,projectile))continue;
       if(projectile.kind==='bullet'){g.lineStyle(2,0xffd797).lineBetween(projectile.x,projectile.y,projectile.x-projectile.vx*.015,projectile.y-projectile.vy*.015);continue;}
       const angle=Math.atan2(projectile.vy,projectile.vx);
       if(projectile.kind==='rocket'){g.lineStyle(5,0xa5a98a).lineBetween(projectile.x-Math.cos(angle)*8,projectile.y-Math.sin(angle)*8,projectile.x+Math.cos(angle)*8,projectile.y+Math.sin(angle)*8);g.fillStyle(0xffb66e).fillCircle(projectile.x-Math.cos(angle)*11,projectile.y-Math.sin(angle)*11,4);}

@@ -1,14 +1,14 @@
 import { Random } from '../../core/random';
 import { createArena } from '../maps/maps';
 import { CLASSES, PHYSICS, WEAPONS } from './config';
-import { FIXED_DT, clamp, distance, type Action, type ClassId, type MatchConfig, type MatchState, type Soldier, type Team, type Vec, type WeaponId } from './types';
+import { FIXED_DT, clamp, distance, type Action, type ClassId, type MatchConfig, type MatchState, type Rect, type Soldier, type Team, type Vec, type WeaponId } from './types';
 import { CombatSystem, killSoldier, weaponSlot } from './combat';
-import { lineOfSight, moveSoldier, updateMovingPlatforms } from './physics';
+import { clipSegmentToRect, lineOfSight, moveSoldier, pointInCombatView, updateMovingPlatforms } from './physics';
 import { EnvironmentSystem } from './environment';
 import { updateMode } from './modes';
 
 export { damageSoldier, killSoldier, muzzlePoint, weaponSlot } from './combat';
-export { lineOfSight, raycastGeometry, rayRect, soldierBox } from './physics';
+export { clipSegmentToRect, lineOfSight, pointInCombatView, raycastGeometry, rayRect, soldierBox, soldierInCombatView } from './physics';
 
 const CLASS_ORDER: ClassId[] = ['assault', 'support', 'defense', 'sniper'];
 const CALLSIGNS = ['NOVA', 'ROOK', 'EMBER', 'ATLAS', 'FINCH', 'COBALT', 'LYNX', 'TALON', 'ECHO', 'ONYX', 'SABLE', 'VIPER', 'REED', 'FROST', 'KITE', 'SPARK'];
@@ -34,6 +34,25 @@ export class ShooterMatch {
       environment: { name: 'ALL CLEAR', description: 'Environmental conditions stable.', warningUntil: 0, activeUntil: 0 }, weather: initialWeather() };
     for (let id = 0; id <= normalized.botCount; id++) this.state.soldiers.push(this.makeSoldier(id));
     this.resetCrates();
+  }
+
+  /** Browser hosts provide the same world rectangle that they display. */
+  setCombatView(view?: Rect): void {
+    const state = this.state;
+    if (!view) { delete state.combatView; return; }
+    if (![view.x, view.y, view.w, view.h].every(Number.isFinite)) state.combatView = { x: 0, y: 0, w: 0, h: 0 };
+    else {
+      const x = clamp(Math.min(view.x, view.x + view.w), 0, state.arena.width);
+      const y = clamp(Math.min(view.y, view.y + view.h), 0, state.arena.height);
+      const right = clamp(Math.max(view.x, view.x + view.w), 0, state.arena.width);
+      const bottom = clamp(Math.max(view.y, view.y + view.h), 0, state.arena.height);
+      state.combatView = { x, y, w: right - x, h: bottom - y };
+    }
+    state.projectiles = state.projectiles.filter(projectile => pointInCombatView(state, projectile));
+    state.tracers = state.tracers.flatMap(tracer => {
+      const clipped = clipSegmentToRect(tracer.from, tracer.to, state.combatView!);
+      return clipped ? [{ ...tracer, from: clipped.from, to: clipped.to }] : [];
+    });
   }
 
   private makeSoldier(id: number): Soldier {

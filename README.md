@@ -1,4 +1,4 @@
-﻿# Afterhours Arcade
+# Afterhours Arcade
 
 Two original browser games in one static application:
 
@@ -50,9 +50,9 @@ npm run test:all
 - `test:all`: unit/integration tests, browser tests and the production build, in sequence.
 - `test:watch`: Vitest during development.
 
-Playwright starts Vite at port **4173**, or reuses a server already there outside CI. Stop an unrelated preview on that port before testing. On Linux CI, use `npx playwright install --with-deps chromium`. Browser failure traces and screenshots are written to ignored `test-results/`.
+Playwright starts Vite at port **4173**, or reuses a server already there outside CI. Stop an unrelated preview on that port before testing. On Linux CI, use `npx playwright install --with-deps chromium`. Browser failure traces and screenshots are written to ignored `test-results/`. Traces retain actions, DOM and source snapshots; continuous screencast frames are disabled because GPU readback makes high-resolution software rendering much slower.
 
-Manual shooter check: select a class/map/mode, deploy, run with A/D, jump with W/Space, climb a ladder with W/S, aim/fire with the mouse, reload with R, switch with 1/2, use Q, open a nearby crate with E and throw F. Pause, restart, and return to the arcade. Run a long match to see the announced environmental event after a minute (two minutes with reduced frequency).
+Manual shooter check: select a class/map/mode, deploy, run with A/D, jump with W/Space, climb a ladder with W/S, aim/fire with the mouse, reload with R, switch with 1/2, use Q, open a nearby crate with E and throw F. Pause, restart, and return to the arcade. On Skybreach, jump into a walkway underside and hold S while standing on it: both sides must remain solid. Climb through a ladder opening in both directions. Check that occluded spaces are shaded and become lit as you regain sight, and that physical cargo carries no item-name labels. Verify that cargo/walls and thin walkways stop shots from both sides and hide characters behind them; climb around an obstacle to regain sight. Explore the stepped freight stacks and listen to the new orchestral theme using PREVIEW SOUNDTRACK in setup. Run a long match to see the announced environmental event after a minute (two minutes with reduced frequency).
 
 ## Build and inspect production
 
@@ -80,14 +80,14 @@ Render remains an optional static-host migration: use the included `render.yaml`
 
 **BLAST ARENA** retains five arenas, four bot difficulties, ten upgrades, original procedural pixel art/music, teleporters, bomb pushing/kicking, sudden death and match statistics. Arrow keys/WASD move; Space places a bomb; E activates the secondary ability; Escape pauses. Touch controls remain available. See [Blast Arena's full guide](docs/BLAST_ARENA.md).
 
-**FRONTLINE HEROES** adds six large multi-level battlefields, four playable classes, twelve weapons, three modes and 3–15 bots split between Blue and Red. It uses a following 960×540 camera over 4800×1200 worlds, smooth articulated art, spatial audio and original multi-section scores.
+**FRONTLINE HEROES** adds six large multi-level battlefields, four playable classes, twelve weapons, three modes and 3–15 bots split between Blue and Red. It uses a following 960×540 camera over 4800×1200 worlds, smooth detailed cartoon characters, spatial audio and original multi-section scores. Skybreach now has six distinct cargo-aircraft sections, varied physical freight cover, richer colored scenery and an orchestral score with strings, horns, woodwind and concert percussion. Every active wall, deck and obstacle blocks movement, vision and ballistics from both sides. Ladders use real openings between solid platforms. AI sight is limited to 380-480 units and the actual camera view; offscreen attackers cannot shoot into it, and bullets/projectiles stop at screen edges. Translucent shadows show the areas outside your current line of sight. Recruit is the easier default; higher health and reduced weapon damage allow time to react. Skybreach has connected architectural set pieces and pressure leaks that change compartments after a visible warning. Physical scenery has no item-name labels. Software GPUs automatically use a faster native Canvas renderer.
 
 | Control | Shooter action |
 | --- | --- |
 | A / D | Move |
 | W / Space | Jump |
 | W / S | Climb ladders |
-| S | Drop through one-way walkways |
+| S / Down | Descend a ladder through its opening |
 | Mouse / left button | Aim / fire |
 | R | Reload from reserve ammunition |
 | 1 / 2 | Switch weapon slot |
@@ -122,6 +122,6 @@ Hosting configuration is prepared; no public deployment has been performed by th
 
 ## Verified delivery
 
-The integrated arcade passes **129 Vitest tests**, **23 Playwright Chromium scenarios**, strict TypeScript checking, and the production build. This includes all 63 existing Blast Arena simulation tests and all 9 existing Blast browser scenarios. The shooter adds 47 engine tests, 19 AI/map tests, and 14 portal/shooter browser scenarios, with 15-bot setup exercised on all six maps. `npm audit` reports **zero vulnerabilities** for the installed lockfile.
+The integrated arcade passes **240 Vitest tests**, **27 Playwright Chromium scenarios**, strict TypeScript checking, and the production build. This includes all 63 existing Blast Arena simulation tests and all 9 existing Blast browser scenarios. The shooter adds 114 engine tests, 33 AI/map tests, 19 audio tests, 7 navigation geometry tests, 4 visibility tests, and 18 portal/shooter browser scenarios, with 15-bot setup exercised on all six maps. `npm audit` reports **zero vulnerabilities** for the installed lockfile.
 
 The production output was also smoke-tested over HTTP: both game routes launch and refresh, the shooter class shield runs, trailing-slash URLs resolve, development diagnostics are absent, and no runtime errors, failed requests, or external asset requests were observed. The catalog creates no game canvas and requests no Phaser engine chunk. The build's only advisory is the size of the shared Phaser runtime (about 332 kB gzipped).

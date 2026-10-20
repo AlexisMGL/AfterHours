@@ -1,5 +1,6 @@
 import type { GameEvent, MapId, MatchState } from '../core/types';
 import { WEAPONS } from '../core/config';
+import { OrchestraBank, ORCHESTRAL_PHRASES, type OrchestralInstrument } from './Orchestra';
 
 export type ShooterTheme=MapId|'menu'|'selection'|'victory'|'defeat';
 interface Score {bpm:number;root:number;scale:number[];progression:number[];wave:OscillatorType;style:'action'|'industrial'|'orchestral'|'urban'|'military'|'naval'|'menu'|'selection'|'victory'|'defeat';a:number[][];b:number[][]}
@@ -10,8 +11,10 @@ const minor=[0,2,3,5,7,8,10],major=[0,2,4,5,7,9,11];
 // Ten original scores. Integers are scale degrees, -99 denotes a rest.
 // Each score has two eight-bar sections; the 32-bar arrangement adds a varied
 // second statement and an orchestrated return after the contrasting section.
+// Skybreach and the menu/result themes use the longer, duration-based phrases
+// in Orchestra.ts; the remaining maps retain their own eighth-note melodies.
 export const SHOOTER_SCORES:Record<ShooterTheme,Score>={
- aircraft:{bpm:138,root:62,scale:minor,progression:[0,5,3,4,0,5,6,4],wave:'sawtooth',style:'action',
+ aircraft:{bpm:108,root:50,scale:minor,progression:[0,5,3,4,0,5,6,4],wave:'triangle',style:'orchestral',
   a:[[7,-99,9,11,14,11,9,7],[12,10,7,-99,5,7,10,12],[10,-99,12,14,12,10,7,5],[11,8,6,-99,8,11,13,11],[7,9,11,14,16,14,11,9],[12,-99,14,17,16,14,12,10],[13,11,9,6,9,11,13,16],[11,-99,8,6,4,6,8,11]],
   b:[[14,-99,11,9,7,-99,9,11],[12,14,17,14,12,10,7,-99],[10,12,14,17,19,17,14,12],[13,11,8,6,8,-99,11,13],[14,16,18,21,18,16,14,-99],[17,16,14,12,10,7,10,12],[13,-99,16,18,20,18,16,13],[15,13,11,8,6,-99,8,11]]},
  factory:{bpm:132,root:64,scale:minor,progression:[0,0,5,3,0,6,5,4],wave:'sawtooth',style:'industrial',
@@ -52,6 +55,9 @@ export class ShooterAudio{
   private echo?:DelayNode;
   private room?:DelayNode;
   private noise?:AudioBuffer;
+  private orchestra?:OrchestraBank;
+  private hall?:ConvolverNode;
+  private preparingOrchestra=false;
   private voices=new Set<Voice>();
   private theme:ShooterTheme='menu';
   private playing=false;
@@ -72,6 +78,8 @@ export class ShooterAudio{
       this.music.connect(this.master);this.sfx.connect(this.master);this.master.connect(compressor);compressor.connect(c.destination);
       this.echo=c.createDelay(.7);this.echo.delayTime.value=.22;const echoFeedback=c.createGain(),echoWet=c.createGain();echoFeedback.gain.value=.17;echoWet.gain.value=.1;
       this.echo.connect(echoFeedback);echoFeedback.connect(this.echo);this.echo.connect(echoWet);echoWet.connect(this.music);
+      this.orchestra=new OrchestraBank(c);this.hall=c.createConvolver();this.hall.buffer=this.orchestra.hall();
+      const hallWet=c.createGain();hallWet.gain.value=.32;this.hall.connect(hallWet);hallWet.connect(this.music);
       this.room=c.createDelay(.3);this.room.delayTime.value=.065;const roomWet=c.createGain();roomWet.gain.value=.18;const roomFilter=c.createBiquadFilter();roomFilter.frequency.value=2800;
       this.room.connect(roomFilter);roomFilter.connect(roomWet);roomWet.connect(this.sfx);
       this.noise=c.createBuffer(1,c.sampleRate,c.sampleRate);const data=this.noise.getChannelData(0);let rng=0x5be79a31;
@@ -159,7 +167,14 @@ export class ShooterAudio{
   }
 
   private start():void{
-    const c=this.context!;this.next=c.currentTime+.06;
+    const c=this.context!;
+    // Sample generation must never run inside the live scheduling horizon.
+    // Cache the complete arrangement before choosing its audio-clock time.
+    if(this.orchestralTheme()){
+      this.preparingOrchestra=true;
+      try{const score=SHOOTER_SCORES[this.theme];for(let step=0;step<256;step++)this.musicStep(score,step,0,60/score.bpm/2);}finally{this.preparingOrchestra=false;}
+    }
+    this.next=c.currentTime+.06;
     const schedule=():void=>{
       if(!this.context||this.context.state!=='running')return;
       if(this.next<this.context.currentTime-.2)this.next=this.context.currentTime+.025;
@@ -167,8 +182,12 @@ export class ShooterAudio{
     };
     schedule();this.timer=setInterval(schedule,25);
   }
+  private orchestralTheme():boolean{return this.theme==='aircraft'||this.theme==='menu'||this.theme==='selection'||this.theme==='victory'||this.theme==='defeat';}
   private pitch(s:Score,degree:number):number{return s.root+Math.floor(degree/7)*12+s.scale[((degree%7)+7)%7]!;}
   private musicStep(s:Score,step:number,t:number,eighth:number):void{
+    if(this.orchestralTheme()){
+      this.orchestralStep(s,step,t,eighth);return;
+    }
     const bar=Math.floor(step/8),beat=step%8,section=Math.floor(bar/8),phrase=bar%8;
     const degrees=(section===2?s.b:s.a)[phrase]!,note=degrees[beat]!,chord=s.progression[phrase]!;
     const soft=s.style==='selection'||s.style==='defeat';
@@ -187,6 +206,51 @@ export class ShooterAudio{
     if(s.style==='urban'&&beat===5)this.musicDrum(t+eighth*.5,130,45,.12,.16);
     if(phrase===7&&beat>=6){this.musicDrum(t+eighth*.5,260-beat*15,80,.12,.1);this.musicNoise(t+eighth*.5,.06,4200,.05);}
     if(this.intensity>.5&&beat%2)this.musicNoise(t+eighth*.5,.03,7800,.035*this.intensity);
+  }
+
+  private orchestralStep(s:Score,step:number,t:number,eighth:number):void{
+    const bar=Math.floor(step/8),beat=step%8,section=Math.floor(bar/8),phrase=bar%8;
+    const quiet=this.theme==='selection'||this.theme==='defeat',menu=this.theme==='menu';
+    const root=this.theme==='aircraft'?s.root:this.theme==='selection'?45:50;
+    const score={...s,root},chord=s.progression[phrase]!,arc=section===2?.9:section===3?1:section===1?.8:.67;
+    const dynamic=(quiet?.52:menu?.7:1)*arc*(.92+this.intensity*.12);
+    if(beat===0){
+      // Long, overlapping bowed chords and a double-bass foundation.
+      for(const n of [0,2,4])this.orchestralNote('strings',this.pitch(score,chord+n),t,eighth*8.15,.072*dynamic,.32,(n-2)*.17);
+      this.orchestralNote('basses',this.pitch(score,chord-7),t,eighth*7.5,.13*dynamic,.12,-.18);
+      if(!quiet&&!menu)this.orchestralNote('horns',this.pitch(score,chord),t,eighth*3.3,.09*dynamic,.2,.22);
+    }
+    const melody=(section===2?ORCHESTRAL_PHRASES.b:ORCHESTRAL_PHRASES.a)[phrase];
+    for(const [offset,degree,length] of melody)if(offset===beat){
+      const pitch=this.pitch(score,degree);
+      this.orchestralNote(quiet||section===2?'flute':'horns',pitch,t,eighth*length,.19*dynamic,.09,.12);
+      this.orchestralNote('strings',pitch+(section===3?12:0),t+.025,eighth*(length+.12),.07*dynamic,.16,-.3);
+    }
+    // Bowed low-string pulses are articulated rather than a synth arpeggiator.
+    if(!quiet&&!menu&&(beat%2===0||section===3||this.intensity>.7)){
+      this.orchestralNote('basses',this.pitch(score,chord+(beat===6?4:0)),t,eighth*.72,.105*dynamic,.018,-.35);
+    }
+    if(quiet)return;
+    if(beat===0||(!menu&&beat===4))this.orchestralNote('timpani',this.pitch(score,chord-7),t,eighth*3,.32*dynamic,.003,-.22);
+    if(phrase===7&&beat>=6&&!menu)this.orchestralNote('timpani',this.pitch(score,beat===6?-7:-10),t,eighth*1.6,.2*dynamic,.003,.2);
+    if(beat===0&&(phrase===0||phrase===4))this.orchestralNote('cymbal',60,t,2.8,.12*dynamic,.04,.4);
+  }
+
+  private orchestralNote(instrument:OrchestralInstrument,midi:number,t:number,duration:number,volume:number,attack:number,pan:number):void{
+    const sample=this.orchestra!.sample(instrument,midi);if(this.preparingOrchestra)return;
+    const c=this.context!,source=c.createBufferSource(),gain=c.createGain(),filter=c.createBiquadFilter(),panner=c.createStereoPanner();
+    source.buffer=sample.buffer;source.playbackRate.value=sample.rate;
+    const percussion=instrument==='timpani'||instrument==='cymbal',release=percussion?.12:instrument==='strings'?.38:.23;
+    if(!percussion){source.loop=true;source.loopStart=.4;source.loopEnd=1.5;}
+    filter.type='lowpass';filter.frequency.setValueAtTime(instrument==='horns'?1700:instrument==='basses'?1100:instrument==='cymbal'?11000:5800,t);
+    if(instrument==='horns')filter.frequency.linearRampToValueAtTime(2900,t+.18);
+    panner.pan.value=pan;const end=t+duration+release;
+    gain.gain.setValueAtTime(.0001,t);gain.gain.linearRampToValueAtTime(volume,t+attack);
+    gain.gain.setTargetAtTime(volume*(percussion?.08:.82),t+Math.min(duration*.55,.6),percussion?.4:.35);
+    gain.gain.setTargetAtTime(.0001,t+duration,release/4);gain.gain.setValueAtTime(0,end);
+    source.connect(filter);filter.connect(gain);gain.connect(panner);panner.connect(this.music!);panner.connect(this.hall!);
+    const voice=this.register([source],[filter,gain,panner],true,percussion?1:instrument==='horns'||instrument==='flute'?4:2,end);
+    if(!voice)return;source.start(t);source.stop(end+.01);
   }
 
   private note(midi:number,t:number,duration:number,kind:'lead'|'bass'|'pad'|'arp',score:Score,volume:number):void{

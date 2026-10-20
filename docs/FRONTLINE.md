@@ -11,7 +11,7 @@ Local installation, production builds, portal routes, and Netlify deployment are
 | A / D, Left / Right | Move |
 | W / Space, Up | Jump; W / Up also climbs a ladder |
 | W / S near ladders | Climb up / down |
-| S / Down | Drop through an eligible one-way walkway |
+| S / Down | Descend a ladder through its opening |
 | Mouse / left button | Aim / hold to fire |
 | R | Reload the active weapon |
 | 1 / 2 | Select primary / secondary slot |
@@ -27,13 +27,18 @@ Movement/action keys can be rebound in Settings. Keyboard and mouse are the inte
 
 The simulation runs at **60 fixed steps per second**. Character positions describe their feet; the collision body is 28 wide and 54 high. Gravity is 1500 units/s², jump velocity is 650 units/s upward, ladder speed is 195 units/s, coyote time is 0.11 seconds, and jump buffering is 0.13 seconds. Holding Jump does not cause automatic repeated jumps. A jump reaches approximately 141 units above its starting surface, so higher galleries use ladders, footholds, or lifts. Platforms may carry soldiers; conveyors also carry loose loot.
 
-One-way walkways support descending characters and grenades. Characters can jump upward through them or deliberately drop through. Bullets pass through these walkways; solid cover blocks bullets and blast line of sight. Lightweight cover has finite health. Destroying it updates collision and navigation in the simulation.
+Every active platform, floor, wall and cover piece is solid from all sides: jumps stop against undersides, characters land on top, and S never drops through a floor. Ladders and vertical lifts pass through real openings in the decks; climb through an opening before stepping sideways onto its landing. The same geometry blocks line of sight, hitscan bullets, travelling rockets/grenades and blast damage. Swept segment collisions prevent fast projectiles skipping thin geometry. Lightweight cover has finite health; destruction updates collision and navigation. Inactive/destroyed objects no longer occlude. A single explosion uses the pre-destruction cover layout for all its targets, so destroying a crate does not let the same blast damage a target behind it.
 
 The weapon muzzle sits 32 units along the aim direction from the shoulder at feet-y minus 34. A solid obstacle between shoulder and muzzle blocks the shot as well, preventing a gun barrel from firing through cover. Most firearms use hitscan; the Thumper and Comet simulate travelling projectiles. Shotguns fire eight individual pellets. Grenades bounce and have a 2.6-second fuse. Rocket impacts explode immediately.
 
-Headshots multiply sniper bullet damage by **2**, and other bullet damage by **1.6**. Bullet damage falls with distance beyond half the weapon's maximum range. Splash damage falls with distance and requires clear solid-geometry line of sight. Teammates cannot damage each other; **your own explosives can hurt you**. There is no fall damage, though leaving the bottom of the playable world eliminates a soldier.
+Headshots multiply sniper bullet damage by **2**, and other bullet damage by **1.6**. Bullet damage falls with distance beyond half the weapon's maximum range. Splash damage falls with distance and requires clear active-geometry line of sight, including all decks and walkways. Teammates cannot damage each other; **your own explosives can hurt you**. There is no fall damage, though leaving the bottom of the playable world eliminates a soldier.
 
+A translucent navy shadow marks the areas outside the followed soldier's line of sight. Its shape follows the same active walls, decks and cover used by combat, updates when cover moves or breaks, and preserves enough scenery detail to navigate. The lit region has direct sight; the shaded region hides soldiers. Physical props carry no floating item-name labels; section signs remain on the aircraft walls.
+
+The browser host supplies the exact displayed camera rectangle through `ShooterMatch.setCombatView()`. Offscreen soldiers cannot fire into it. Hitscan rays stop at its four edges; travelling projectiles disappear at an edge without an offscreen explosion. Moving the camera immediately removes excluded projectiles and clips existing tracers. Blast origins and targets must remain inside the displayed combat area. The fixed-step core owns these rules; hiding a bullet in the renderer is not the enforcement. Standalone simulations can omit the optional viewport.
 Magazines and reserves are finite. Reloading transfers only available reserve rounds and never refills them for free. Empty-fire clicks are rate-limited. Bots use these same ammunition, movement, damage, cooldown, and visibility rules.
+
+Full-health soldiers survive one sniper headshot (130 damage), one complete shotgun headshot volley (102.4), one direct rocket (at most 95), or one hand grenade (at most 85). A Vanguard body-shot elimination against Assault takes 12 hits, about 1.28 seconds in the fixed-step simulation, before misses, cover or reloads. Damage still accumulates from multiple enemies.
 
 ## Classes
 
@@ -41,12 +46,12 @@ Speeds below are base speeds before the active weapon's mobility penalty.
 
 | Class | Health | Speed | Starting equipment | Ability |
 | --- | ---: | ---: | --- | --- |
-| Assault | 125 | 260 | Vanguard AR, Kestrel .45, 2 grenades | Adrenaline Rush: 6 seconds; 25-second cooldown |
-| Support | 115 | 245 | Wisp SMG, Hush-9, 1 grenade | Medic Station: 10 seconds; 30-second cooldown |
-| Defense | 185 | 215 | Bulwark LMG, Kestrel .45, 1 grenade | Tactical Shield: 8 seconds; 26-second cooldown |
-| Sniper | 90 | 250 | Longbow SR, Hush-9, 1 grenade | Focus Mode: 5 seconds; 25-second cooldown |
+| Assault | 180 | 260 | Vanguard AR, Kestrel .45, 2 grenades | Adrenaline Rush: 6 seconds; 25-second cooldown |
+| Support | 170 | 245 | Wisp SMG, Hush-9, 1 grenade | Medic Station: 10 seconds; 30-second cooldown |
+| Defense | 240 | 215 | Bulwark LMG, Kestrel .45, 1 grenade | Tactical Shield: 8 seconds; 26-second cooldown |
+| Sniper | 150 | 250 | Longbow SR, Hush-9, 1 grenade | Focus Mode: 5 seconds; 25-second cooldown |
 
-**Adrenaline Rush** multiplies movement speed by 1.25, new reload durations by 0.65, and recoil/spread by 0.72. **Focus** reduces recoil/spread to 0.23 of the normal value and extends the bot's sight range by 12% while active.
+**Adrenaline Rush** multiplies movement speed by 1.25, new reload durations by 0.65, and recoil/spread by 0.72. **Focus** reduces recoil/spread to 0.23 of the normal value and extends the bot's sight range by up to 12% while active, within the 480-unit cap.
 
 A **Medic Station** has 90 health, a 145-unit healing radius, and 250 total shared healing capacity. It heals nearby allied soldiers, including its owner, at up to 20 health/second each when solid cover does not block the healing line. It expires after 10 seconds or when destroyed or depleted. Healing contributes to the owner's healing statistic and score.
 
@@ -58,18 +63,18 @@ Values are centralized in [`src/frontline/core/config.ts`](../src/frontline/core
 
 | Weapon | Category | Damage | Shot interval | Magazine / reserve | Reload | Maximum range |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Kestrel .45 | Pistol | 25 | 0.26s | 12 / 72 | 1.25s | 850 |
-| Hush-9 | Pistol | 18 | 0.15s | 18 / 108 | 1.10s | 720 |
-| Wisp SMG | SMG | 14 | 0.082s | 32 / 192 | 1.60s | 680 |
-| Cyclone PDW | SMG | 16 | 0.075s | 36 / 180 | 1.90s | 740 |
-| Vanguard AR | Rifle | 22 | 0.115s | 30 / 180 | 1.80s | 1050 |
-| Ranger Mk II | Rifle | 27 | 0.14s | 24 / 144 | 1.90s | 1150 |
-| Breach-8 | Shotgun | 12 × 8 pellets | 0.70s | 8 / 48 | 2.20s | 470 |
-| Bulwark LMG | LMG | 23 | 0.10s | 60 / 240 | 3.20s | 1100 |
-| Longbow SR | Sniper | 88 | 1.15s | 5 / 30 | 2.70s | 1650 |
-| Meridian DMR | DMR | 46 | 0.40s | 14 / 84 | 2.05s | 1400 |
-| Thumper GL | Grenade launcher | 65 blast | 1.10s | 4 / 16 | 2.80s | 1400 launch budget |
-| Comet RPG | Rocket launcher | 105 blast | 1.50s | 1 / 5 | 2.80s | 1800 launch budget |
+| Kestrel .45 | Pistol | 21 | 0.26s | 12 / 72 | 1.25s | 850 |
+| Hush-9 | Pistol | 15 | 0.15s | 18 / 108 | 1.10s | 720 |
+| Wisp SMG | SMG | 9 | 0.082s | 32 / 192 | 1.60s | 680 |
+| Cyclone PDW | SMG | 10 | 0.075s | 36 / 180 | 1.90s | 740 |
+| Vanguard AR | Rifle | 15 | 0.115s | 30 / 180 | 1.80s | 1050 |
+| Ranger Mk II | Rifle | 20 | 0.14s | 24 / 144 | 1.90s | 1150 |
+| Breach-8 | Shotgun | 8 × 8 pellets | 0.70s | 8 / 48 | 2.20s | 470 |
+| Bulwark LMG | LMG | 14 | 0.10s | 60 / 240 | 3.20s | 1100 |
+| Longbow SR | Sniper | 65 | 1.15s | 5 / 30 | 2.70s | 1650 |
+| Meridian DMR | DMR | 34 | 0.40s | 14 / 84 | 2.05s | 1400 |
+| Thumper GL | Grenade launcher | 60 blast | 1.10s | 4 / 16 | 2.80s | 1400 launch budget |
+| Comet RPG | Rocket launcher | 95 blast | 1.50s | 1 / 5 | 2.80s | 1800 launch budget |
 
 Projectile weapons use travel time, gravity where applicable, collision, and a finite lifetime rather than an instantaneous range cutoff. Thumper launch speed is 670 and blast radius 125; Comet speed is 830 and radius 155. Hand grenades deal up to 85 damage in a 135-unit radius. Weapons also differ in recoil, spread, rarity, and movement penalties in the configuration file.
 
@@ -104,25 +109,34 @@ Ship water begins below the lower floor after the first event and rises at 2.4 u
 
 ## AI and architecture
 
-Recruit, Regular, Veteran, and Elite vary reaction delay, sight/hearing range, memory duration, aim error, prediction, positioning, and ability use. Bots perceive actual line of sight, reduced sight in fog, approximate heard sound positions, and expiring last-known positions. Hidden enemy positions do not supply aim targets. Teams distribute flag assignments; bots reload, change weapons, search for supplies, use cover, heal, and activate class abilities through normal actions.
+Recruit is the default difficulty: a 0.62-second reaction interval, wider aiming error, occasional firing opportunities, no predictive aim and no thrown grenades. Higher difficulties remain available in setup. Recruit, Regular, Veteran, and Elite have base sight ranges of 380, 420, 450 and 480 world units, further limited by the current combat viewport, fog and opaque geometry. Focus never extends AI sight beyond 480 units or through an obstacle. These profiles also vary reaction delay, hearing range, memory duration, aim error, prediction, positioning, and ability use. Cached bursts/grenade decisions are cancelled on the very first fixed step after losing current sight, without waiting for the next scheduled decision. Bots perceive actual line of sight, reduced sight in fog, approximate heard sound positions, and expiring last-known positions. Hidden enemy positions do not supply aim targets. Bodies, labels, health, shields and muzzle flashes render only with the living followed soldier's current line of sight, including allies; switching spectator target changes that observer. Team-shared sightings are limited to the minimap. There is no body outline through a wall during Sniper Focus. Teams distribute flag assignments; bots reload, change weapons, search for supplies, use cover, heal, and activate class abilities through normal actions.
 
-`src/frontline/core/` owns authoritative rules. `physics.ts` handles movement, platform collision, and shared ray queries; `combat.ts` handles weapons, damage, abilities, projectiles, and healing; `environment.ts` owns timed transitions; `modes.ts` owns scoring/endings; `engine.ts` advances the match. `src/frontline/maps/maps.ts` builds and validates arenas and navigation graphs. `src/frontline/ai/` handles perception, routing, and controllers. Rendering, input, menus, and Web Audio are separate.
+`src/frontline/core/` owns authoritative rules. `physics.ts` handles movement, platform collision, and shared ray queries; `combat.ts` handles weapons, damage, abilities, projectiles, and healing; `environment.ts` owns timed transitions; `modes.ts` owns scoring/endings; `engine.ts` advances the match. `src/frontline/maps/maps.ts` builds and validates arenas and navigation graphs; `skybreach.ts` authors the aircraft layout and its scene metadata. `src/frontline/ai/` handles perception, routing, and controllers. Rendering, input, menus, and Web Audio are separate.
 
 Random choices use the shared seeded PRNG. Navigation rebuilds after cover/structure changes, with combat rebuilds batched to one per step. AI decisions are scheduled rather than fully replanned each frame. Projectiles, tracers, loot, stations, and temporary geometry have finite lifetimes or capacities.
 
 Future online play would supply tick-indexed actions to the same simulation through `FutureRemoteController`, then add authoritative validation and snapshot/prediction machinery. That interface is present; networking is not. Internal permanent timestamps can use `Infinity`, which a future JSON snapshot protocol must encode explicitly.
+
+
+## Skybreach visual and music pass
+
+Skybreach has six authored aircraft sections: loading ramp, heavy cargo, supply hold, crew service, avionics and flight deck. Gallery gaps, stepped freight stacks and intermediate footholds vary the combat routes. Large rear-wall scenes tie the decks into the aircraft: ramp and wing views, cargo cranes and suspended freight, a medical/service alcove, avionics cabling and panoramic cockpit glass. Structural ribs, trusses, conduit bundles and colored light connect the sections instead of leaving isolated platforms against an empty wall. Orange/blue/green containers, strapped cases, fuel drums, wood pallets, medical supplies, service carts, engines and avionics cabinets are physical cover. Their silhouettes match their collision rectangles. Rear-wall panels, ribs, windows/clouds, pipes, cargo nets, ventilation fans, signs and lighting are background scenery. Pressure events now select different ramp, supply or forward compartments, never repeating the previous compartment. Each area is marked almost three seconds before its wind hazard activates; optional damaged service paths may collapse, while the permanent ladders remain available.
+
+Soldiers and firearms use smooth native vector shapes with shaded armor, visible faces, helmets/headsets, straps, pouches, gloves, kneepads and boots. Class equipment changes their silhouette; team colors remain distinct. Menu and catalog illustrations use the same cartoon direction. Antialiasing and subpixel placement stay enabled. On hardware WebGL, High/Medium/Low use 1920x1080, 1440x810 and 960x540 backing canvases while the camera and input remain 960x540 world units. Software GPUs automatically use native Canvas 2D at 960x540, retaining the authored shapes and colors with flat material shading. Backend detection runs once and releases its temporary probe context. Fixed scenery is culled to padded camera cells and captured in four bounded viewport textures, avoiding per-frame triangulation of the entire map; cache size does not grow with map width. A short local 15-bot Skybreach check on the Canvas fallback measured about 60 FPS with simulation time matching wall time. This is a smoke check rather than a cross-device performance guarantee. New matches, changed seeds, respawns and new rounds reset or snap the camera; the host prepares one camera rectangle before fixed steps and the renderer displays that same rectangle.
+
+The Skybreach score is a new 108 BPM orchestral arrangement, with long horn/flute melodies, overlapping ensemble strings, bowed bass pulses, timpani and cymbal swells in a 32-bar structure. Menu, selection and result themes use the same instrument bank. These are original locally generated instrument samples and synthesized concert-hall reverberation, rather than recordings of a real orchestra. The complete arrangement is prepared by pitch family before its audio clock starts, avoiding mid-song sample generation. Voices remain bounded, and independent volume controls still apply. There are no soundtrack downloads or additional runtime dependencies.
 
 ## Verification and current scope
 
 Run the shooter simulation/AI checks with:
 
 ```sh
-npm run test -- tests/frontline-engine.test.ts tests/frontline-ai-maps.test.ts
+npm run test -- tests/frontline-engine.test.ts tests/frontline-ai-maps.test.ts tests/frontline-audio.test.ts
 ```
 
-The engine suite covers movement, coyote/buffer behavior, ladder exits in both directions, one-way drops, lifts/conveyors, moving cover, muzzle/solid-cover collision, headshots, friendly fire, spawn protection, finite ammunition/reloads, weapon switching, shotgun pellets, travelling explosives, grenade bounces, all abilities, station destruction, crates/loot, team balance, all modes, event activation, flooding, and deterministic replay.
+The engine suite covers thin/grazing cover, deck occlusion in both directions, high-speed projectiles, occluded blast targets, movement, coyote/buffer behavior, solid platforms from every side, ladder openings and exits in both directions, lifts/conveyors, moving cover, muzzle/solid-cover collision, headshots, friendly fire, spawn protection, finite ammunition/reloads, weapon switching, shotgun pellets, travelling explosives, grenade bounces, all abilities, station destruction, crates/loot, team balance, all modes, event activation, flooding, and deterministic replay.
 
-AI/map checks validate seeded maps, bidirectional objective/spawn/crate routes, physical tours of all three flag elevations on all six maps, fair perception, class abilities, and seeded replay. Automated simulations exercise all 18 map/mode combinations with 15 bots and longer environmental-event runs. An additional six-map, 120-second, 15-bot diagnostic completed successfully. Focused Factory/Forest/Harbor runs recorded 99/104/99 kills, maximum simultaneous projectile counts of 4/5/3, and no eight-second windows of commanded movement without displacement. These are simulation observations, **not browser FPS benchmarks**.
+AI/map checks validate seeded maps, bidirectional objective/spawn/crate routes, physical tours of all three flag elevations on all six maps, fair perception, class abilities, and seeded replay. Automated simulations exercise all 18 map/mode combinations with 15 bots and longer environmental-event runs. The Skybreach update also checks actual physical tours to the three flags and elevated cargo crates, clear starting movement/jumping, both-direction deck occlusion and cover layouts across multiple seeds. These are simulation checks, **not browser FPS benchmarks**.
 
 The main README records combined-project browser/build verification. Automated browser coverage targets Chromium; other recent desktop browsers still require their own verification. Fifteen bots are supported, but 60 FPS across all devices has not been established. Tactical navigation uses handcrafted platform connections and graph heuristics rather than a full arbitrary-geometry motion planner. Bots have class roles, cover/repositioning behavior, and distributed objectives; advanced coordinated squad suppression is not implemented. Environmental destruction is scripted/limited to designated pieces, and unsafe optional deliveries can be skipped.
 

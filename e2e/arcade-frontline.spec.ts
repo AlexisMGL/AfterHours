@@ -1,6 +1,7 @@
 ﻿import {test,expect,type Page} from '@playwright/test';
 import type {MatchState,Rect} from '../src/frontline/core/types';
 interface Api{state():MatchState;camera():Rect;screen():string;paused():boolean}
+function expectSameView(view:Rect,camera:Rect){for(const key of ['x','y','w','h'] as const)expect(view[key]).toBeCloseTo(camera[key],8);}
 const snapshot=(page:Page)=>page.evaluate(()=>{const api=(window as unknown as {__FRONTLINE__:Api}).__FRONTLINE__,s=api.state();return {time:s.time,tick:s.tick,config:s.config,phase:s.phase,soldiers:s.soldiers,stationCount:s.stations.length,flagCount:s.flags.length,projectileCount:s.projectiles.length,camera:api.camera()};});
 async function setup(page:Page){await page.goto('/frontline-heroes');await page.getByRole('button',{name:'DEPLOY YOUR SQUAD'}).click();}
 async function deploy(page:Page){await page.getByRole('button',{name:'START MISSION'}).click();await page.locator('#fh-canvas canvas').waitFor();await expect.poll(async()=>(await snapshot(page)).time).toBeGreaterThan(.05);}
@@ -18,7 +19,7 @@ test('portal lazily loads either game, navigation and direct refresh preserve bo
 });
 
 test('human movement, jump, mouse aim, fire, reload, weapon switch, ability, grenade and pause/restart',async({page})=>{
- const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));await setup(page);await page.locator('#fh-bots').fill('3');await page.locator('#fh-bots').dispatchEvent('change');await deploy(page);
+ const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));await setup(page);await expect(page.locator('#fh-difficulty')).toHaveValue('recruit');await page.locator('#fh-bots').fill('3');await page.locator('#fh-bots').dispatchEvent('change');await deploy(page);
  const before=await snapshot(page);expect(before.soldiers).toHaveLength(4);expect(before.camera.w).toBe(960);
  await page.keyboard.down('KeyD');await page.waitForFunction(()=>(window as unknown as {__FRONTLINE__:Api}).__FRONTLINE__.state().soldiers[0].x>180);await page.keyboard.up('KeyD');
  await page.keyboard.press('Space');await page.waitForFunction(()=>(window as unknown as {__FRONTLINE__:Api}).__FRONTLINE__.state().soldiers[0].y<1100);
@@ -32,6 +33,33 @@ test('human movement, jump, mouse aim, fire, reload, weapon switch, ability, gre
  await page.keyboard.down('Tab');await expect(page.locator('#fh-scoreboard')).toBeVisible();await expect(page.locator('#fh-scoreboard tbody tr')).toHaveCount(4);await page.keyboard.up('Tab');await expect(page.locator('#fh-scoreboard')).toBeHidden();
  await page.keyboard.press('Escape');await expect(page.getByRole('dialog',{name:'Mission paused'})).toBeVisible();const paused=(await snapshot(page)).time;await page.waitForTimeout(250);expect((await snapshot(page)).time).toBe(paused);
  await page.getByRole('button',{name:'RESTART MISSION'}).click();expect((await snapshot(page)).soldiers[0].stats.shots).toBe(0);expect((await snapshot(page)).soldiers[0].weapons[0].ammo).toBe(30);expect(errors).toEqual([]);
+});
+
+test('the live camera bounds combat and offscreen bots cannot shoot into the player view',async({page})=>{
+ const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
+ await setup(page);await page.locator('#fh-bots').fill('3');await page.locator('#fh-bots').dispatchEvent('change');await deploy(page);
+ const inspect=()=>page.evaluate(()=>{
+  const api=(window as unknown as {__FRONTLINE__:Api}).__FRONTLINE__,state=api.state(),view=state.combatView,camera=api.camera();
+  if(!view)throw new Error('The live match has no combat viewport');
+  const inside=(point:{x:number;y:number})=>point.x>=view.x-1e-6&&point.x<=view.x+view.w+1e-6&&point.y>=view.y-1e-6&&point.y<=view.y+view.h+1e-6;
+  return{view,camera,player:state.soldiers[0],tracers:state.tracers.length,
+   escaped:state.projectiles.some(point=>!inside(point))||state.tracers.some(trace=>!inside(trace.from)||!inside(trace.to)),
+   offscreenEnemyShots:state.soldiers.filter(s=>s.team===1&&!inside({x:s.x,y:s.y-34})).reduce((sum,s)=>sum+s.stats.shots,0)};
+ });
+ const first=await inspect();expectSameView(first.view,first.camera);expect(first.offscreenEnemyShots).toBe(0);
+ const box=await page.locator('#fh-canvas canvas').boundingBox();expect(box).not.toBeNull();
+ await page.mouse.move(box!.x+1,box!.y+(first.player.y-34-first.view.y)/first.view.h*box!.height);await page.mouse.down();
+ let observedTracers=0;
+ for(let sample=0;sample<12;sample++){
+  await page.waitForTimeout(90);const current=await inspect();observedTracers+=current.tracers;
+  expectSameView(current.view,current.camera);expect(current.escaped).toBe(false);expect(current.offscreenEnemyShots).toBe(0);
+ }
+ await page.mouse.up();expect(observedTracers).toBeGreaterThan(0);
+ await page.keyboard.press('Space');await expect.poll(async()=>(await inspect()).player.y).toBeLessThan(1090);
+ const airborne=await inspect();expectSameView(airborne.view,airborne.camera);
+ await page.keyboard.press('Escape');await page.getByRole('button',{name:'RESTART MISSION'}).click();
+ const restarted=await inspect();expect(restarted.camera.x).toBe(0);expectSameView(restarted.view,restarted.camera);expect(restarted.player.stats.shots).toBe(0);
+ expect(errors).toEqual([]);
 });
 
 for(const className of ['Assault','Support','Defense','Sniper'])test(`${className} deploys with working class ability`,async({page})=>{

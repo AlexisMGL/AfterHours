@@ -12,7 +12,6 @@ export class LocalHumanController implements Controller {
   if(Object.values(b).includes(code)||['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Digit1','Digit2','Tab'].includes(code))event.preventDefault();
   this.held.add(code);if(event.repeat)return;
   if(code===b.jump||code===b.climb||code==='ArrowUp')this.edges.jump=true;
-  if(code===b.down||code==='ArrowDown')this.edges.drop=true;
   if(code===b.reload)this.edges.reload=true;if(code===b.ability)this.edges.ability=true;if(code===b.interact)this.edges.interact=true;if(code===b.grenade)this.edges.grenade=true;
   if(code==='Digit1')this.edges.switchWeapon=0;if(code==='Digit2')this.edges.switchWeapon=1;
  };

@@ -5,7 +5,7 @@ import { damageSoldier } from './combat';
 import { overlaps, soldierBox } from './physics';
 
 const EVENT_NAMES = {
-  aircraft: ['TURBULENCE / RAMP ALERT', 'Cabin pressure is falling near the cargo ramp. Brace for turbulence and damaged service paths.'],
+  aircraft: ['PRESSURE LEAK / TURBULENCE', 'A marked compartment is losing pressure. Move out of the warning zone; damaged service paths may give way.'],
   factory: ['PRESSURE SURGE / POWER FAILURE', 'Vents are charging. Emergency lighting and the lift circuits remain operational.'],
   forest: ['STORM FRONT / FALLING TIMBER', 'Rain and fog are moving in. Marked timber falls into new cover; avoid the wildfire zone.'],
   city: ['STRUCTURAL ALERT / BLACKOUT', 'A damaged optional walkway is collapsing. Main ladders and objective routes remain open.'],
@@ -19,6 +19,7 @@ export class EnvironmentSystem {
   private nextPlatformId = 10000;
   private temporary: { id: number; until: number }[] = [];
   private readonly lootVelocity = new Map<number, number>();
+  private pressureBay = -1;
   constructor(private readonly random: Random) {}
 
   private floor(state: MatchState): number {
@@ -28,7 +29,7 @@ export class EnvironmentSystem {
   private clearSite(state: MatchState, x: number, y: number, width: number, height: number): boolean {
     const rect = { x, y, w: width, h: height };
     return !state.soldiers.some(s => s.alive && overlaps(soldierBox(s), rect))
-      && !state.arena.platforms.some(p => p.active && !p.oneWay && overlaps(p, rect))
+      && !state.arena.platforms.some(p => p.active && overlaps(p, rect))
       && !state.arena.ladders.some(l => overlaps({ x: l.x - 50, y: l.y, w: l.w + 100, h: l.h }, rect))
       && !state.flags.some(f => Math.abs(f.x - (x + width / 2)) < 180 && Math.abs(f.y - (y + height)) < 130)
       && !state.arena.spawns.some(s => Math.abs(s.x - (x + width / 2)) < 250);
@@ -71,7 +72,11 @@ export class EnvironmentSystem {
     } else if (state.arena.id === 'forest') {
       hazard({ x: width * 0.61, y: floor - 90, w: 180, h: 90, kind: 'fire', damage: 12 });
     } else if (state.arena.id === 'aircraft') {
-      hazard({ x: width - 620, y: floor - 230, w: 420, h: 230, kind: 'wind', damage: 6 });
+      const choices = [0, 1, 2].filter(bay => bay !== this.pressureBay);
+      this.pressureBay = choices[this.random.int(choices.length)]!;
+      const x = width * [.06, .42, .84][this.pressureBay]!;
+      const height = [220, 440, 660][this.pressureBay]!;
+      hazard({ x, y: floor - height, w: Math.min(340, width * .12), h: height, kind: 'wind', damage: 6 });
     } else if (state.arena.id === 'harbor') {
       // A zero-damage zone still exposes the delivery footprint during warning.
       hazard({ x: width * 0.64, y: floor - 95, w: 175, h: 95, kind: 'wind', damage: 0 });
