@@ -1,14 +1,15 @@
 # Afterhours Arcade
 
-Two original browser games in one static application:
+Three original browser games in one static application:
 
 | Route | Game |
 | --- | --- |
 | `/` | Afterhours Arcade catalog |
 | `/blast-arena` | BLAST ARENA: the existing maze survival game, including its portal safety fix |
 | `/frontline-heroes` | FRONTLINE HEROES: a side-view tactical platform shooter |
+| `/rush-hour` | EXIT LANE: a sliding-car puzzle game with 15 levels across three worlds |
 
-The catalog loads no Phaser instance. Each game is imported only on its own route; ordinary navigation unloads the previous page, game loop, audio and listeners. Both games share the installed Phaser/Vite toolchain and deploy together.
+The catalog loads no Phaser instance. Each game is imported only on its own route; ordinary navigation unloads the previous page, game loop, audio and listeners. Blast Arena and Frontline Heroes use Phaser; Exit Lane uses native SVG, HTML and Web Audio. All three share Vite and deploy together.
 
 ## Run locally
 
@@ -34,7 +35,7 @@ $env:Path = "$PWD\.tools\node-v22.23.3-win-x64;$env:Path"
 npm.cmd run dev
 ```
 
-The ignored `.tools/` runtime is a local development convenience and is not included in a Git clone. `.nvmrc` selects Node 22 for compatible version managers. No runtime backend, API key, paid service, account or database is required by either game.
+The ignored `.tools/` runtime is a local development convenience and is not included in a Git clone. `.nvmrc` selects Node 22 for compatible version managers. No runtime backend, API key, paid service, account or database is required by any game.
 
 ## Test locally
 
@@ -45,14 +46,16 @@ npm run test:e2e
 npm run test:all
 ```
 
-- `test`: deterministic Vitest tests for both simulations, weapons, abilities, maps, modes, tactical AI and stress scenarios.
-- `test:e2e`: real Chromium tests for the catalog, both routes, Blast Arena, shooter controls, classes, settings, minimap, 15-bot setup, pause/restart and responsive menus.
+- `test`: deterministic Vitest tests for the game engines, puzzle solvability, weapons, abilities, maps, modes, tactical AI and audio.
+- `test:e2e`: real Chromium tests for the catalog, game routes, gameplay controls, settings, pause/restart and responsive menus.
 - `test:all`: unit/integration tests, browser tests and the production build, in sequence.
 - `test:watch`: Vitest during development.
 
 Playwright starts Vite at port **4173**, or reuses a server already there outside CI. Stop an unrelated preview on that port before testing. On Linux CI, use `npx playwright install --with-deps chromium`. Browser failure traces and screenshots are written to ignored `test-results/`. Traces retain actions, DOM and source snapshots; continuous screencast frames are disabled because GPU readback makes high-resolution software rendering much slower.
 
 Manual shooter check: select a class/map/mode, deploy, run with A/D, jump with W/Space, climb a ladder with W/S, aim/fire with the mouse, reload with R, switch with 1/2, use Q, open a nearby crate with E and throw F. Pause, restart, and return to the arcade. On Skybreach, explore the open tail ramp, climb through a hatch onto the roof, cross the exterior wing and re-enter through a different entrance. Check the inside/open-air location label and minimap. Jump into a walkway underside and hold S while standing on it: both sides must remain solid. Climb through a ladder opening in both directions. Check that occluded spaces are shaded and become lit as you regain sight, and that physical cargo carries no item-name labels. Verify that cargo/walls and thin walkways stop shots from both sides and hide characters behind them; flank around an obstacle to regain sight. Explore the stepped freight stacks and listen to the orchestral theme using PREVIEW SOUNDTRACK in setup. Run a long match to see the announced environmental event after a minute (two minutes with reduced frequency).
+
+Manual puzzle check: open Exit Lane, enter a level and slide cars with the mouse, touch or the selected car's arrow keys. A car must stay on its axis, stop at occupied cells and remain inside the board until the red car reaches the right-hand exit. Try undo, reset and a hint, finish a puzzle, inspect the level browser and reload to check saved progress. Visit each of the three worlds and switch between the five music tracks. Check desktop and narrow mobile layouts. See [Exit Lane's rules and architecture](docs/TRAFFIC.md).
 
 ## Build and inspect production
 
@@ -61,16 +64,16 @@ npm run build
 npm run preview
 ```
 
-Open **http://127.0.0.1:4173**. Also open `/blast-arena` and `/frontline-heroes` directly and refresh each page. `build` runs strict TypeScript checking and Vite, then writes the entire arcade to **`dist/`**. Serve that folder over HTTP; opening `index.html` with `file://` is unsupported. Use `npm ci` for a clean lockfile-based installation.
+Open **http://127.0.0.1:4173**. Also open `/blast-arena`, `/frontline-heroes` and `/rush-hour` directly and refresh each page. `build` runs strict TypeScript checking and Vite, then writes the entire arcade to **`dist/`**. Serve that folder over HTTP; opening `index.html` with `file://` is unsupported. Use `npm ci` for a clean lockfile-based installation.
 
-## Deploy both games to Netlify
+## Deploy the arcade to Netlify
 
 1. Push this repository, including `package-lock.json`, to your Git provider.
 2. Import it into Netlify with the repository root as the base directory.
 3. Build command: **`npm run build`**. Publish directory: **`dist`**. Node version: **22**.
-4. Deploy, then check the catalog and refresh both game routes.
+4. Deploy, then check the catalog and refresh all three game routes.
 
-The existing **`netlify.toml`** supplies the build, Node version, SPA fallback, asset caching and response headers. Vite uses root-relative assets to support direct and refreshed routes. The catalog and both games use **one deployment**. See the [Netlify Vite guide](https://docs.netlify.com/build/frameworks/framework-setup-guides/vite/).
+The existing **`netlify.toml`** supplies the build, Node version, SPA fallback, asset caching and response headers. Vite uses root-relative assets to support direct and refreshed routes. The catalog and all three games use **one deployment**. See the [Netlify Vite guide](https://docs.netlify.com/build/frameworks/framework-setup-guides/vite/).
 
 For a manual Netlify Drop upload, build locally and upload **`dist`**, not the source. `public/_redirects` is copied into the build to make game-route refresh work with manual uploads too. Repository-level `netlify.toml` caching and header rules apply to Git builds; manual uploads still serve the complete application.
 
@@ -99,6 +102,8 @@ Render remains an optional static-host migration: use the included `render.yaml`
 
 Settings include independent master/music/effects volumes, three graphics qualities, particles, camera shake, reduced motion and key rebinding. Preferences are saved separately for each game. Shooter play is designed for desktop keyboard/mouse; its menus adapt to mobile screens. See [Frontline Heroes' mechanics and architecture](docs/FRONTLINE.md).
 
+**EXIT LANE** is a calm Rush Hour-style puzzle game: move cars forward and backward on a 6 × 6 board until the red car can leave through the right-hand exit. Its 15 puzzles span three distinct worlds with five levels each and increasing solution lengths. Every authored starting position is validated by an exhaustive breadth-first solver. Drag with the mouse or touch, or select a car and use the arrow keys along its axis. Undo, restart, hints, a level browser and locally saved progress support longer sessions without a time limit. Five original Web Audio compositions rotate automatically and can be changed from the music controls. See [Exit Lane's full guide](docs/TRAFFIC.md).
+
 ## Architecture and adding games
 
 - `src/main.ts`: route selection and lazy imports.
@@ -108,11 +113,15 @@ Settings include independent master/music/effects volumes, three graphics qualit
 - `src/frontline/maps/`, `src/frontline/ai/`: six arenas, platform navigation, fair perception and tactical controllers.
 - `src/frontline/render/`, `src/frontline/audio/`: Phaser presentation and spatial Web Audio.
 - `src/frontline/main.ts`, `style.css`, `ui/`: menus, HUD, minimap, input, illustrations and preferences.
+- `src/traffic/core.ts`, `levels.ts`: browser-independent sliding-car rules, exhaustive solver and 15 authored puzzles.
+- `src/traffic/main.ts`, `style.css`, `art.ts`: responsive puzzle UI, pointer/keyboard input and original SVG scenery.
+- `src/traffic/audio.ts`: five original procedural compositions and puzzle sound effects.
+- `src/traffic/preview.ts`: lightweight catalog artwork without importing the game or its solver.
 - `tests/`, `e2e/`: shared automated validation.
 
 To add a game, create its own entry and namespaced modules, add a lazy route branch in `src/main.ts`, and add a catalog card. Keep its CSS isolated to that route. Use ordinary links back to `/`, clean up input/audio/rendering on unload, and add route/navigation tests. The current Netlify fallback already supports another route.
 
-Both simulations consume common controller actions independently from presentation. Future remote-controller interfaces are types only; an authoritative server could validate tick-indexed commands and share snapshots without moving damage or scoring into the UI. No fake lobbies, sockets, accounts, cloud saves or online matchmaking are implemented.
+The two real-time simulations consume common controller actions independently from presentation. Exit Lane keeps puzzle state, legal moves and solving independent from its SVG interface. Future remote-controller interfaces for the action games are types only; an authoritative server could validate tick-indexed commands and share snapshots without moving damage or scoring into the UI. No fake lobbies, sockets, accounts, cloud saves or online matchmaking are implemented.
 
 ## Verification scope
 
@@ -120,8 +129,8 @@ Automated browser verification targets Chromium. Safari, Firefox and other brows
 
 Hosting configuration is prepared; no public deployment has been performed by this task. See `docs/FRONTLINE.md` for deliberate gameplay simplifications and navigation tradeoffs.
 
-## Verified delivery
+## Delivery checks
 
-The integrated arcade passes **246 Vitest tests**, **27 Playwright Chromium scenarios**, strict TypeScript checking, and the production build. This includes all 63 existing Blast Arena simulation tests and all 9 existing Blast browser scenarios. The shooter adds 114 engine tests, 33 AI/map tests, 6 exterior-route tests, 19 audio tests, 7 navigation geometry tests, 4 visibility tests, and 18 portal/shooter browser scenarios, with 15-bot setup exercised on all six maps. The exterior tests execute roof/wing/interior routes with the slowest loaded class, verify alternate entrances and flanks, and preserve circulation after cover destruction.
+Run `npm run test:all` for the current test results and production build. The automated suite covers the existing action games, their catalog navigation and the new puzzle engine. Puzzle validation checks all 15 authored boards, legal moves and solution replay. The shooter suite includes exterior routes, alternate entrances and flanks on Skybreach, including circulation after cover destruction.
 
-The production output was also smoke-tested over HTTP: both game routes launch and refresh, the shooter class shield runs, trailing-slash URLs resolve, development diagnostics are absent, and no runtime errors, failed requests, or external asset requests were observed. The catalog creates no game canvas and requests no Phaser engine chunk. The build's only advisory is the size of the shared Phaser runtime (about 332 kB gzipped).
+Before deployment, smoke-test the production output over HTTP: launch and refresh every game route, check trailing-slash URLs, navigate back to the catalog and inspect the browser console and requests. The catalog and Exit Lane should create no Phaser canvas and request no Phaser engine chunk.

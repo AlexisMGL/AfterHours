@@ -8,6 +8,9 @@ async function launch(): Promise<void> {
   } else if (route === '/frontline-heroes') {
     document.title = 'FRONTLINE HEROES · Afterhours Arcade';
     await import('./frontline/main');
+  } else if (route === '/rush-hour') {
+    document.title = 'EXIT LANE · Afterhours Arcade';
+    await import('./traffic/main');
   } else {
     document.title = 'Afterhours Arcade · One more round.';
     await import('./arcade');
