@@ -5,6 +5,7 @@ import { WEAPONS } from '../core/config';
 import { eye, lineOfSight } from '../ai/perception';
 import { drawSoldierBody } from './SoldierArt';
 import { drawAircraftDecoration, drawAircraftPlatform, drawAircraftShell } from './AircraftArt';
+import { drawAircraftAtmosphere, drawAircraftCutaway, drawAircraftLife } from './AircraftCutaway';
 import { ViewportCache } from './ViewportCache';
 import { chooseGraphicsBackend,canvasCompatibleGraphics,type GraphicsBackend } from './GraphicsBackend';
 import { visibilityShadow } from './VisibilityShadow';
@@ -45,6 +46,7 @@ export class ShooterRenderer {
   private backdrop?:Phaser.GameObjects.Graphics;
   private far?:Phaser.GameObjects.Graphics;
   private near?:Phaser.GameObjects.Graphics;
+  private aircraftAtmosphere?:Phaser.GameObjects.Graphics;
   private geometry?:Phaser.GameObjects.Graphics;
   private world?:Phaser.GameObjects.Graphics;
   private effects?:Phaser.GameObjects.Graphics;
@@ -84,7 +86,7 @@ export class ShooterRenderer {
       this.spotted.clear();this.visibleBodies.clear();this.alliedObservers=[];
       for(const actor of this.actors.values())actor.root.destroy(true);this.actors.clear();
       for(const sign of this.signs)sign.destroy();this.signs=[];for(const flag of this.flags.values())flag.destroy();this.flags.clear();
-      this.cache?.destroy();this.geometry?.clear();this.world?.clear();this.effects?.clear();this.weather?.clear();this.shadow?.clear();this.shadowSignature='';
+      this.cache?.destroy();this.geometry?.clear();this.world?.clear();this.effects?.clear();this.weather?.clear();this.shadow?.clear();this.aircraftAtmosphere?.clear();this.shadowSignature='';
     }
     this.state=state;
   }
@@ -111,6 +113,7 @@ export class ShooterRenderer {
     this.backdrop=this.graphics().setDepth(-50).setScrollFactor(0);
     this.far=this.graphics().setDepth(-40).setScrollFactor(.16,.10);
     this.near=this.graphics().setDepth(-30).setScrollFactor(.38,.24);
+    this.aircraftAtmosphere=this.graphics().setDepth(-25).setScrollFactor(0);
     this.geometry=this.graphics().setDepth(0);
     this.world=this.graphics().setDepth(4);
     this.effects=this.graphics().setDepth(30);
@@ -160,8 +163,11 @@ export class ShooterRenderer {
       this.cache!.capture('geometry',this.geometry!,this.staticView,this.renderScale);
     }
     this.updateVisibility(state);
+    const atmosphere=this.aircraftAtmosphere!.clear(),ambientTime=this.options.reducedMotion?0:this.time;
+    if(state.arena.id==='aircraft')drawAircraftAtmosphere(atmosphere,this.camera,ambientTime,this.options.quality);
     const g=this.world.clear(),fx=this.effects.clear();
     for(const platform of state.arena.platforms)if(platform.active&&platform.moving&&this.visible(platform,100))this.drawPlatform(g,platform,state.arena.id);
+    if(state.arena.id==='aircraft')drawAircraftLife(g,state.arena,this.camera,ambientTime);
     this.drawHazards(g,state);
     this.drawObjects(g,state);
     const present=new Set<number>();
@@ -324,11 +330,7 @@ export class ShooterRenderer {
   private drawGeometry(state:MatchState):void{
     const g=this.geometry!.clear();for(const sign of this.signs)sign.destroy();this.signs=[];
     if(state.arena.id==='aircraft'){
-      for(const section of state.arena.sections??[]){
-        if(!this.staticVisible({x:section.x,y:0,w:section.w,h:state.arena.height}))continue;
-        g.fillStyle(hex(section.color),.12).fillRect(section.x,0,section.w,state.arena.height);
-        g.lineStyle(1,hex(section.accent),.1).lineBetween(section.x,80,section.x,state.arena.height);
-      }
+      drawAircraftCutaway(g,state.arena,this.staticView);
       for(const decoration of state.arena.decorations??[]){
         if(!this.staticVisible(decoration))continue;
         drawAircraftDecoration(g,decoration);

@@ -4,48 +4,63 @@ import { drawAircraftArchitecture } from './AircraftArchitecture';
 
 const color=(value:string|undefined,fallback:number):number=>value?Number.parseInt(value.replace('#',''),16):fallback;
 
-/** Distant fuselage and daylight use parallax; interactive freight is drawn separately from real platforms. */
+/** The aircraft is a world-space cutaway. Every uncovered space opens onto this sky. */
 export function drawAircraftShell(bg:Phaser.GameObjects.Graphics,far:Phaser.GameObjects.Graphics,near:Phaser.GameObjects.Graphics,width:number,camera:Rect):void{
-  bg.fillGradientStyle(0x183342,0x274558,0x5f7c84,0x466772).fillRect(0,0,960,540);
-  bg.fillStyle(0xf5d8a9,.16).fillEllipse(190,70,530,145).fillEllipse(720,210,620,120);
-  far.fillGradientStyle(0x263b48,0x2b4654,0x3d5560,0x314957).fillRoundedRect(-220,-200,width+500,1150,210);
-  for(let i=0;i<Math.ceil(width/285);i++){
-    const x=75+i*285,y=126+(i%3)*12;
-    if(x+140<camera.x*.16-220||x>camera.x*.16+1180)continue;
-    far.fillStyle(0x101f2c).fillRoundedRect(x-5,y-5,124,175,58);
-    far.fillStyle(0x6b8995).fillRoundedRect(x,y,114,165,52);
-    far.fillStyle(0x86acbc).fillRoundedRect(x+8,y+9,98,146,45);
-    far.fillStyle(0xc0d8d9,.18).fillRoundedRect(x+13,y+13,82,126,39);
-    far.fillStyle(0xf4e8cd,.5).fillEllipse(x+33,y+37,66,27).fillEllipse(x+61,y+48,80,24);
-    far.fillStyle(0xd8e3df,.26).fillEllipse(x+70,y+92,91,19);
-    far.fillStyle(0xdef1ed,.15).fillTriangle(x+11,y+138,x+104,y+32,x+104,y+70);
-    far.lineStyle(2,0x91b3b7,.65).strokeRoundedRect(x+8,y+9,98,146,45);
-    far.fillStyle(0x1d3541).fillRect(x+20,y+159,74,6);
+  // Explicit bands retain a blue sky on the native Canvas renderer, which has no gradient opcode.
+  for(let i=0;i<90;i++){
+    const ratio=i/89,red=Math.round(85+ratio*100),green=Math.round(151+ratio*60),blue=Math.round(191+ratio*24);
+    bg.fillStyle(red<<16|green<<8|blue).fillRect(0,i*6,960,6);
   }
-  // Soft rear-wall bays and arched pressure frames, distinct from foreground cover.
-  for(let i=0;i<Math.ceil(width/410);i++){
-    const x=i*410;
-    if(x+410<camera.x*.38-220||x>camera.x*.38+1180)continue;
-    near.fillGradientStyle(0x263e49,0x304e58,0x203743,0x29434e,.8,.8,.8,.8).fillRoundedRect(x+25,-170,356,970,135);
-    near.lineStyle(18,0x536871,.46).strokeRoundedRect(x+8,-220,388,1040,145);
-    near.lineStyle(3,0xb0bec0,.28).strokeRoundedRect(x+16,-213,372,1027,138);
-    near.lineStyle(2,0x183541,.48).lineBetween(x+50,385,x+340,385);
-    near.lineStyle(6,0x172d38,.65).lineBetween(x+37,447,x+343,447);
-    near.lineStyle(2,0xc0a476,.3).lineBetween(x+37,444,x+343,444);
-    near.fillStyle(0xd0b573,.28).fillRoundedRect(x+99,81,168,9,4);
-    near.fillStyle(0xffdd99,.1).fillEllipse(x+183,99,215,45);
-    for(let row=0;row<3;row++){
-      const y=486+row*100;
-      near.fillStyle(0x122d39,.3).fillRoundedRect(x+48,y,285,71,8);
-      near.lineStyle(1,0x72919a,.18).strokeRoundedRect(x+48,y,285,71,8);
-      near.fillStyle(row%2?0x7eaaa5:0xba9b70,.12).fillRoundedRect(x+63,y+12,54,6,3);
-    }
+  bg.fillStyle(0xffe5ae,.1).fillCircle(757,82,130);
+  bg.fillStyle(0xffe5ae,.12).fillCircle(757,82,88);
+  bg.fillStyle(0xffeac6,.65).fillCircle(757,82,25);
+  // Far below the aircraft, a broken coastline conveys altitude rather than a floor.
+  const span=Math.max(1900,width*.38+1350);
+  far.fillStyle(0x718d9b,.26).fillPoints([{x:-250,y:490},{x:190,y:437},{x:420,y:476},{x:695,y:422},{x:1020,y:481},{x:1320,y:439},{x:span,y:505},{x:span,y:990},{x:-250,y:990}],true);
+  far.fillStyle(0x9bb3b7,.23).fillEllipse(540,517,960,84).fillEllipse(1490,552,1300,93);
+  for(let i=0;i<18;i++){
+    const x=i*214-180,y=100+(i*137)%410;
+    if(x+420<camera.x*.16-220||x-210>camera.x*.16+1180)continue;
+    far.fillStyle(0xf3e6cd,.2).fillEllipse(x,y,380+(i%3)*75,40+(i%4)*13);
+    far.fillStyle(0xedede0,.3).fillEllipse(x-45,y-9,190,45).fillEllipse(x+65,y+4,238,37);
+  }
+  for(let i=0;i<12;i++){
+    const x=i*320-120,y=220+(i*191)%540;
+    if(x+450<camera.x*.38-220||x-220>camera.x*.38+1180)continue;
+    near.fillStyle(0xf5ecd8,.15).fillEllipse(x,y,440,66).fillEllipse(x-57,y-19,230,73);
+    near.fillStyle(0xd8e5df,.17).fillEllipse(x+65,y+18,360,44);
   }
 }
 
 /** Every opaque object in this function exactly occupies authoritative collision geometry. */
 export function drawAircraftPlatform(g:Phaser.GameObjects.Graphics,p:Platform,view?:Rect):boolean{
   const {x,y,w,h}=p,skin=p.skin??(p.oneWay?'catwalk':h<100&&w>500?'deck':'supply-crate');
+  const wing=p.label==='PORT WING / EXTERIOR',outerHull=wing||/PRESSURE HULL|CREW ROOF|RADAR SPINE|COCKPIT CANOPY/.test(p.label??'');
+  if(outerHull){
+    // These are the actual colliders: smooth airframe skin replaces the indoor catwalk girders.
+    g.fillStyle(wing?0xb4c9c8:0x91b2c0).fillRect(x,y,w,h);
+    g.fillStyle(0xeceddb).fillRect(x,y,w,3);
+    g.fillStyle(wing?0x8ba9b0:0x7499ab).fillRect(x,y+h*.54,w,h*.46);
+    g.fillStyle(0x294f65,.75).fillRect(x,y+Math.max(7,h*.31),w,Math.max(3,h*.16));
+    g.fillStyle(0xe0dfc1,.48).fillRect(x,y+h-4,w,2);
+    g.fillStyle(0x3a6173).fillRect(x,y+h-2,w,2);
+    const left=Math.max(x,view?.x??x),right=Math.min(x+w,view?view.x+view.w:x+w);
+    for(let a=Math.floor(left/108)*108;a<right;a+=108){
+      const panel=Math.max(x+2,a),seam=Math.min(x+w-2,a+103);
+      if(seam<=panel+8)continue;
+      g.lineStyle(1,0x466d7e,.6).lineBetween(seam,y+4,seam-9,y+h-5);
+      g.lineStyle(1,0xe4e8d6,.55).lineBetween(seam+2,y+4,seam-7,y+h-5);
+      for(const offset of[9,39,70])if(panel+offset<seam-8){
+        g.fillStyle(0x486d79,.65).fillCircle(panel+offset,y+6,1.1);
+        if(h>29)g.fillStyle(0x577b85,.7).fillCircle(panel+offset,y+h-8,1.1);
+      }
+      if(wing&&h>30&&seam-panel>34){
+        g.fillStyle(0x6e909a,.65).fillRoundedRect(panel+20,y+h*.68,Math.min(39,seam-panel-26),5,2);
+        g.fillStyle(0xdce3d3,.6).fillRect(panel+22,y+h*.68,Math.min(34,seam-panel-28),1);
+      }
+    }
+    return true;
+  }
   if(skin==='deck'||skin==='catwalk'||p.oneWay){
     const deck=color(p.color,0x617b88);
     g.fillStyle(0x152c37,.65).fillRoundedRect(x+2,y+3,w,h,3);

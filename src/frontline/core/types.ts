@@ -11,6 +11,8 @@ export type PlatformSkin = 'deck'|'catwalk'|'cargo-blue'|'cargo-orange'|'cargo-g
 /** oneWay is a legacy gallery/style tag; every active platform is solid. */
 export interface Platform extends Rect { id:number;oneWay:boolean;material:'metal'|'stone'|'wood'|'glass';active:boolean;hp?:number;conveyor?:number;moving?:MovingPlatform;previousX?:number;previousY?:number;skin?:PlatformSkin;label?:string;color?:string }
 export interface ArenaSection { id:string;name:string;x:number;w:number;color:string;accent:string }
+/** Playable cutaway spaces; exterior zones expose the actual sky behind the combat geometry. */
+export interface AircraftZone extends Rect { id:string;name:string;kind:'interior'|'exterior' }
 /** Back-wall scenery only. Foreground cover must be an actual Platform. */
 export type AircraftMotif='pressure-frame'|'gallery-brace'|'ramp-vista'|'cargo-crane'|'freight-recess'|'supply-lockers'|'medical-bay'|'cable-wall'|'flight-glass'|'ceiling-duct'|'loose-cable'|'light-pool';
 export interface ArenaDecoration extends Rect { kind:'panel'|'window'|'rib'|'pipe'|'sign'|'light'|'cargo-net'|'fan'|'hatch';color?:string;accent?:string;label?:string;section?:string;motif?:AircraftMotif }
@@ -20,7 +22,7 @@ export interface NavEdge { to:number;kind:'walk'|'jump'|'drop'|'ladder'|'lift';c
 export interface NavGraph { nodes:NavNode[];edges:Record<number,NavEdge[]> }
 export interface HazardZone extends Rect { kind:'steam'|'fire'|'wind'|'flood';damage:number;starts:number;ends:number }
 export interface Palette { sky:string;far:string;near:string;ground:string;edge:string;accent:string }
-export interface Arena { id:MapId;name:string;width:number;height:number;platforms:Platform[];ladders:Ladder[];spawns:(Vec & {team:Team})[];crateSpawns:Vec[];flagSpawns:Vec[];nav:NavGraph;hazards:HazardZone[];palette:Palette;sections?:ArenaSection[];decorations?:ArenaDecoration[] }
+export interface Arena { id:MapId;name:string;width:number;height:number;platforms:Platform[];ladders:Ladder[];spawns:(Vec & {team:Team})[];crateSpawns:Vec[];flagSpawns:Vec[];nav:NavGraph;hazards:HazardZone[];palette:Palette;sections?:ArenaSection[];aircraftZones?:AircraftZone[];decorations?:ArenaDecoration[] }
 export interface WeaponDefinition { id:WeaponId;name:string;category:'pistol'|'smg'|'rifle'|'shotgun'|'lmg'|'sniper'|'dmr'|'launcher'|'rocket';damage:number;interval:number;magazine:number;reserve:number;reload:number;spread:number;recoil:number;speed:number;range:number;pellets:number;explosion:number;rarity:'common'|'uncommon'|'rare'|'epic';moveMultiplier:number }
 export interface WeaponSlot { id:WeaponId;ammo:number;reserve:number;reloadUntil:number;readyAt:number }
 export interface SoldierStats { kills:number;deaths:number;shots:number;hits:number;damage:number;healing:number;objective:number;score:number }

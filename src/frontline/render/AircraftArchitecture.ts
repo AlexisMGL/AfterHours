@@ -42,21 +42,20 @@ export function drawAircraftArchitecture(g:Phaser.GameObjects.Graphics,d:ArenaDe
   g.fillStyle(accent,.06).fillTriangle(x+w*.25,y+20,x+w*.87,y+h-20,x+28,y+h-20);
  }else if(motif==='cargo-crane'){
   const railY=y+24;
-  g.fillStyle(0x172f3d,.75).fillRoundedRect(x,railY,w,28,7);
-  g.fillStyle(0x78919a,.55).fillRoundedRect(x+5,railY+4,w-10,8,3);
-  for(let a=x+12;a<x+w-20;a+=53)g.lineStyle(3,0xc4a56e,.5).lineBetween(a,railY+20,a+17,railY+10);
-  for(const[offset,drop,cw,ch]of[[.23,.34,.31,.43],[.77,.25,.23,.33]]){
-   const cx=x+w*offset!,top=y+h*drop!,bw=w*cw!,bh=h*ch!,left=cx-bw/2;
-   g.fillStyle(0x7a8e8d,.65).fillRoundedRect(cx-35,railY-8,70,22,5);
-   g.fillStyle(0x283e49,.8).fillCircle(cx-20,railY+10,8).fillCircle(cx+20,railY+10,8);
-   g.lineStyle(2.5,0xbdb494,.68).lineBetween(cx-13,railY+15,cx-13,top).lineBetween(cx+13,railY+15,cx+13,top);
-   g.lineStyle(5,0xc6a76c,.58).strokeCircle(cx,top+2,13);
-   g.lineStyle(2,0xbfb48c,.5).lineBetween(cx-7,top+12,left+8,top+29).lineBetween(cx+7,top+12,left+bw-8,top+29);
-   g.fillStyle(base,.65).fillRoundedRect(left,top+27,bw,bh,7);
-   g.lineStyle(2,0x16313e,.72).strokeRoundedRect(left,top+27,bw,bh,7);
-   for(let a=left+15;a<left+bw-10;a+=28)g.lineStyle(2,0x9ba898,.28).lineBetween(a,top+35,a,top+bh+18);
-   g.lineStyle(4,0xbaa884,.7).lineBetween(left+5,top+33,left+bw-5,top+bh+20).lineBetween(left+bw-5,top+33,left+5,top+bh+20);
-   g.fillStyle(0x172f3a,.4).fillRoundedRect(left+5,top+bh+20,bw-10,6,2);
+  g.fillStyle(0x172f3d,.4).fillRoundedRect(x,railY,w,28,7);
+  g.fillStyle(0x78919a,.27).fillRoundedRect(x+5,railY+4,w-10,8,3);
+  for(let a=x+12;a<x+w-20;a+=53)g.lineStyle(3,0xc4a56e,.25).lineBetween(a,railY+20,a+17,railY+10);
+  // Empty hoists are visually light rear-wall equipment. The freight underneath
+  // is supplied by real collision platforms, never by decorative floating boxes.
+  for(const[offset,drop]of[[.23,.69],[.77,.43]]){
+   const cx=x+w*offset!,hookY=y+h*drop!;
+   g.fillStyle(base,.48).fillRoundedRect(cx-28,railY-8,56,29,8);
+   g.fillStyle(0x233d48,.7).fillCircle(cx-17,railY+12,7).fillCircle(cx+17,railY+12,7);
+   g.lineStyle(2,0xbdb494,.47).lineBetween(cx-8,railY+18,cx-8,hookY).lineBetween(cx+8,railY+18,cx+8,hookY);
+   g.fillStyle(0x3f5960,.8).fillRoundedRect(cx-15,hookY-5,30,23,8);
+   g.lineStyle(3,0xc6a76c,.58).strokeCircle(cx,hookY+7,8);
+   g.lineStyle(4,0xbdac86,.63).beginPath().moveTo(cx,hookY+16).lineTo(cx,hookY+29).lineTo(cx-10,hookY+35).lineTo(cx-17,hookY+29).lineTo(cx-17,hookY+22).strokePath();
+   for(let i=0;i<3;i++)g.fillStyle(accent,.3).fillCircle(cx-8+i*8,railY+1,1.6);
   }
  }else if(motif==='freight-recess'){
   g.fillStyle(0x172f3a,.52).fillRoundedRect(x,y,w,h,32);
