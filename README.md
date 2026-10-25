@@ -1,6 +1,6 @@
 # Afterhours Arcade
 
-Three original browser games in one static application:
+Four original browser experiences in one static application:
 
 | Route | Game |
 | --- | --- |
@@ -8,8 +8,9 @@ Three original browser games in one static application:
 | `/blast-arena` | BLAST ARENA: the existing maze survival game, including its portal safety fix |
 | `/frontline-heroes` | FRONTLINE HEROES: a side-view tactical platform shooter |
 | `/rush-hour` | EXIT LANE: a sliding-car puzzle game with 15 levels across three worlds |
+| `/malagasy-adventure` | MALAGASY ADVENTURE: French-to-Malagasy learning, with three playable units and a planned 20-world journey |
 
-The catalog loads no Phaser instance. Each game is imported only on its own route; ordinary navigation unloads the previous page, game loop, audio and listeners. Blast Arena and Frontline Heroes use Phaser; Exit Lane uses native SVG, HTML and Web Audio. All three share Vite and deploy together.
+The catalog loads no Phaser instance. Each experience is imported only on its own route; ordinary navigation unloads the previous page, game loop, audio and listeners. Blast Arena and Frontline Heroes use Phaser; Exit Lane and Malagasy Adventure use native SVG, HTML and Web Audio. All four share Vite and deploy together.
 
 ## Run locally
 
@@ -64,16 +65,16 @@ npm run build
 npm run preview
 ```
 
-Open **http://127.0.0.1:4173**. Also open `/blast-arena`, `/frontline-heroes` and `/rush-hour` directly and refresh each page. `build` runs strict TypeScript checking and Vite, then writes the entire arcade to **`dist/`**. Serve that folder over HTTP; opening `index.html` with `file://` is unsupported. Use `npm ci` for a clean lockfile-based installation.
+Open **http://127.0.0.1:4173**. Also open `/blast-arena`, `/frontline-heroes`, `/rush-hour` and `/malagasy-adventure` directly and refresh each page. `build` runs strict TypeScript checking and Vite, then writes the entire arcade to **`dist/`**. Serve that folder over HTTP; opening `index.html` with `file://` is unsupported. Use `npm ci` for a clean lockfile-based installation.
 
 ## Deploy the arcade to Netlify
 
 1. Push this repository, including `package-lock.json`, to your Git provider.
 2. Import it into Netlify with the repository root as the base directory.
 3. Build command: **`npm run build`**. Publish directory: **`dist`**. Node version: **22**.
-4. Deploy, then check the catalog and refresh all three game routes.
+4. Deploy, then check the catalog and refresh all four experience routes.
 
-The existing **`netlify.toml`** supplies the build, Node version, SPA fallback, asset caching and response headers. Vite uses root-relative assets to support direct and refreshed routes. The catalog and all three games use **one deployment**. See the [Netlify Vite guide](https://docs.netlify.com/build/frameworks/framework-setup-guides/vite/).
+The existing **`netlify.toml`** supplies the build, Node version, SPA fallback, asset caching and response headers. Vite uses root-relative assets to support direct and refreshed routes. The catalog and all four experiences use **one deployment**. See the [Netlify Vite guide](https://docs.netlify.com/build/frameworks/framework-setup-guides/vite/).
 
 For a manual Netlify Drop upload, build locally and upload **`dist`**, not the source. `public/_redirects` is copied into the build to make game-route refresh work with manual uploads too. Repository-level `netlify.toml` caching and header rules apply to Git builds; manual uploads still serve the complete application.
 
@@ -106,6 +107,10 @@ Settings include independent master/music/effects volumes, three graphics qualit
 
 ## Architecture and adding games
 
+**MALAGASY ADVENTURE** delivers three playable units (9 lessons, 54 authored activities, 7 written exercise formats), 18 tracked concepts and 21 vocabulary entries. The first world contains 12 planned units; units 4–12 and worlds 2–20 are explicitly unavailable. Each future destination has vocabulary, grammar and communication objectives. Required unit checkpoints, cumulative practice, deterministic spaced reviews, capped XP, local autosave and validated JSON export/import are working foundations. Text exercises do not award listening or pronunciation proficiency: verified native recordings and native-speaker review are still required.
+
+Start with [the architecture](docs/ARCHITECTURE.md), [the curriculum](docs/CURRICULUM.md), [the content authoring guide](docs/CONTENT_GUIDE.md), [review mechanics](docs/REVIEW_ENGINE.md), [consulted sources and linguistic limitations](docs/LANGUAGE_SOURCES.md), and [the roadmap](docs/ROADMAP.md). The in-app Sources & Crédits view is generated from the same source registry as the lessons. No account, external AI service, language TTS or runtime API request is needed.
+
 - `src/main.ts`: route selection and lazy imports.
 - `src/arcade.ts`, `src/arcade.css`: catalog, with lightweight locally authored SVG previews.
 - `src/blast.ts`: preserved Blast entry, with its existing `core/`, `ai/`, `maps/`, `render/`, `audio/` and `ui/` modules.
@@ -117,11 +122,12 @@ Settings include independent master/music/effects volumes, three graphics qualit
 - `src/traffic/main.ts`, `style.css`, `art.ts`: responsive puzzle UI, pointer/keyboard input and original SVG scenery.
 - `src/traffic/audio.ts`: five original procedural compositions and puzzle sound effects.
 - `src/traffic/preview.ts`: lightweight catalog artwork without importing the game or its solver.
+- `src/malagasy/`: isolated learning UI, typed curriculum/content/source registries, pure progression/review engines, and versioned browser persistence.
 - `tests/`, `e2e/`: shared automated validation.
 
 To add a game, create its own entry and namespaced modules, add a lazy route branch in `src/main.ts`, and add a catalog card. Keep its CSS isolated to that route. Use ordinary links back to `/`, clean up input/audio/rendering on unload, and add route/navigation tests. The current Netlify fallback already supports another route.
 
-The two real-time simulations consume common controller actions independently from presentation. Exit Lane keeps puzzle state, legal moves and solving independent from its SVG interface. Future remote-controller interfaces for the action games are types only; an authoritative server could validate tick-indexed commands and share snapshots without moving damage or scoring into the UI. No fake lobbies, sockets, accounts, cloud saves or online matchmaking are implemented.
+The two real-time simulations consume common controller actions independently from presentation. Exit Lane keeps puzzle state, legal moves and solving independent from its SVG interface. Malagasy Adventure keeps language content, answer validation, mastery and persistence separate from its DOM views. Future remote-controller interfaces for the action games are types only; an authoritative server could validate tick-indexed commands and share snapshots without moving damage or scoring into the UI. No fake lobbies, sockets, accounts, cloud saves or online matchmaking are implemented.
 
 ## Verification scope
 

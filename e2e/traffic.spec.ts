@@ -73,8 +73,8 @@ test('third catalog card opens a lazy puzzle route, refreshes and returns withou
   page.on('pageerror', error => errors.push(error.message));
   page.on('request', request => requests.push(request.url()));
   await page.goto('/');
-  await expect(page.locator('.arcade-game')).toHaveCount(3);
-  await expect(page.locator('.arcade-section-label')).toContainText('03 GAMES');
+  await expect(page.locator('.arcade-game')).toHaveCount(4);
+  await expect(page.locator('.arcade-section-label')).toContainText('04 EXPERIENCES');
   await page.getByRole('link', { name: 'Play Exit Lane', exact: true }).last().click();
   await expect(page).toHaveURL(/\/rush-hour$/);
   await expect(page).toHaveTitle('EXIT LANE · Afterhours Arcade');
@@ -268,7 +268,7 @@ test('restart during a drag releases the car and browser Back restores an intera
   const moved = (await snapshot(page)).state;
   expect(moved.moves).toBe(1);
   await page.locator('.tl-back').click();
-  await expect(page.locator('.arcade-game')).toHaveCount(3);
+  await expect(page.locator('.arcade-game')).toHaveCount(4);
   await page.goBack();
   await expect(page.locator('#tl-board')).toBeVisible();
   expect((await snapshot(page)).state).toEqual(moved);
