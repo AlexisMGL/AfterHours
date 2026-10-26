@@ -4,6 +4,8 @@
 
 Le contenu vit dans `src/malagasy/content.ts` et les modules de données qu’il importe ; la présentation ne doit pas contenir les corpus. Les interfaces de `types.ts` sont le contrat. Les mondes planifiés se trouvent dans `worlds.ts`.
 
+Lire d’abord [les consignes propres à l’app](../src/malagasy/AGENTS.md). Le périmètre reste les trois premières unités ; ajouter une unité suppose une nouvelle demande d’extension.
+
 Un contenu est publiable lorsque ses références sont valides, ses concepts ont été présentés avant évaluation et ses réponses sont étayées par des sources réellement consultées. La quantité n’est pas un critère de qualité. Ne pas rendre une destination jouable simplement pour remplir la carte.
 
 ## Ajouter une unité et ses leçons
@@ -12,8 +14,8 @@ Un contenu est publiable lorsque ses références sont valides, ses concepts ont
 2. Ajouter ou vérifier chaque source dans `Content.sources`, avec URL directe, auteur, usage précis et statut de consultation. Les permissions d’un enregistrement ne se déduisent pas de son accès public.
 3. Ajouter les concepts avec `introducedIn`, leurs prérequis et leurs sources. Un concept de grammaire désigne une capacité identifiable, pas une catégorie française imposée au malgache.
 4. Ajouter les entrées de vocabulaire avec traduction, note de contexte et `conceptId`.
-5. Créer les leçons : objectifs, notes, nouveaux concepts, concepts revus, exercices, prérequis et durée estimée. Les notes doivent expliquer ce que les exercices évalueront.
-6. Ajouter l’unité et ses `lessonIds`, puis vérifier le rattachement de chaque leçon. Terminer par un bilan cumulatif de type `checkpoint`.
+5. Créer les leçons : objectifs, scènes de découverte, notes facultatives, nouveaux concepts, concepts revus, exercices, prérequis et durée estimée. Le dialogue présente d’abord les expressions ; les notes ne sont pas une longue lecture préalable.
+6. Ajouter l’unité et ses `lessonIds`, puis vérifier le rattachement de chaque leçon. Terminer par un quiz cumulatif complet de type `checkpoint` couvrant tous les concepts de l’unité ; les quiz actuels ont douze questions chacun.
 7. Exécuter le validateur de contenu et les tests. Passer l’unité à `implemented: true` seulement quand toutes ses leçons sont utilisables.
 
 Un prérequis de leçon est un ID de leçon terminée. Un prérequis de concept est un ID de concept déjà présenté. Les prérequis des mondes constituent la planification des destinations. Ces trois graphes ne sont pas interchangeables.
@@ -24,7 +26,7 @@ Chaque exercice fournit : ID, type, consigne, question, réponses acceptées, ex
 
 | Type | Configuration |
 | --- | --- |
-| `choice`, `reading`, `dialogue`, `culture` | `choices` inclut toutes les réponses acceptées ; ajouter `context` pour un texte ou une scène. |
+| `choice`, `reading`, `dialogue`, `culture` | `choices` inclut toutes les réponses acceptées ; utiliser `dialogue` pour la scène en bulles et garder la consigne courte. |
 | `translate`, `cloze` | Déclarer explicitement les variantes dans `answers`. Ne pas accepter une phrase grammaticalement différente par similarité approximative. |
 | `order` | `tokens` contient exactement les mots nécessaires à au moins une réponse acceptée ; la vue mélange les mots. |
 | `match` | `pairs` contient des associations non ambiguës et des valeurs distinctes de chaque côté. Le validateur reçoit un dictionnaire gauche → droite. |
@@ -36,7 +38,13 @@ Un exercice peut porter plusieurs concepts. Toute la liste doit être déjà int
 
 ## Histoires et dialogues
 
-Utiliser une leçon `kind: 'story'` avec des notes de mise en situation, puis des exercices `dialogue`/`reading` enchaînés. La narration française peut contextualiser l’arrivée du voyageur ; le texte malgache doit utiliser des constructions déjà présentées. Les scènes et personnages sont une fiction pédagogique, pas une transcription d’un locuteur. Le moteur actuel accompagne une succession d’étapes : un arbre narratif persistant demanderait une extension du schéma et des tests dédiés.
+Toutes les parties ordinaires (`learn` et `story`) commencent par `Lesson.scenes`. `dialogue-content.ts` contient actuellement quatre scènes par partie, soit vingt-quatre au total. Une `DialogueScene` possède un ID, un cadre très court, des `turns` et éventuellement un repère `takeaway`. Chaque tour fournit `speaker` (`lova` ou `mia`), texte malgache, traduction française et éventuel mot surligné.
+
+La vue révèle les tours progressivement ; la traduction reste dans un dévoilement facultatif. Les nouveaux concepts n’entrent dans la progression qu’au passage à la pratique après ces scènes. Ne pas présenter toute une leçon comme « rencontrée » après son premier tour.
+
+Chaque activité peut utiliser `Exercise.dialogue` pour prolonger l’échange. La question française reste une consigne courte, sans paragraphe technique préalable. Les notes de grammaire sont accessibles via une aide repliée. Les scènes et personnages sont fictifs, pas la transcription d’un locuteur ; un arbre narratif persistant demanderait encore une extension du schéma et des tests.
+
+Les `sourceIds` sont obligatoires en interne. Les liens, attributions et limites documentaires sont affichés uniquement dans « Sources & crédits », jamais au fil de la conversation ou dans le feedback.
 
 ## Ajouter un monde
 
@@ -51,6 +59,8 @@ L’absence de fichier ne doit pas être masquée par une voix française ou ang
 ## Validation avant livraison
 
 `validateContent(CONTENT)` renvoie des erreurs détaillées : doublons, références absentes, cycles, réponses mal configurées, contenu vide, audio manquant et leçons inaccessibles. Son parcours simulé contrôle que les exercices ne comportent pas de concepts inconnus au moment où ils deviennent disponibles.
+
+Les tests d’auteur de `tests/malagasy-dialogues.test.ts` contrôlent aussi les scènes, le dialogue de chaque activité et la couverture des quiz. Le littoral et la projection ont leurs contrôles dédiés dans `tests/malagasy-map.test.ts`. Les motifs sonores d’interface ont des tests navigateur séparés : ils ne constituent pas une validation de prononciation malgache.
 
 Exécuter depuis la racine :
 

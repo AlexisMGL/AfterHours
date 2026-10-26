@@ -20,11 +20,20 @@ export interface Vocabulary {
   conceptId: string; unitId: string; sourceIds: string[]; audioId?: string;
 }
 export interface LessonNote { title: string; body: string; example?: string; translation?: string }
+export type CharacterId = 'lova' | 'mia';
+export interface DialogueTurn {
+  speaker: CharacterId; text: string; translation: string; highlight?: string;
+}
+export interface DialogueScene {
+  id: string; setting: string; turns: DialogueTurn[];
+  takeaway?: { malagasy: string; french: string };
+}
 export interface Lesson {
   id: string; worldId: string; unitId: string; title: string; description: string;
   kind: 'learn' | 'story' | 'checkpoint'; objectives: string[];
   introduces: string[]; reviews: string[]; prerequisites: string[];
   exerciseIds: string[]; notes: LessonNote[]; estimatedMinutes: number; sourceIds: string[];
+  scenes?: DialogueScene[];
 }
 export interface Unit {
   id: string; worldId: string; number: number; title: string; malagasyTitle: string;
@@ -37,6 +46,7 @@ export interface Exercise {
   tokens?: string[]; pairs?: { left: string; right: string }[];
   explanation: string; concepts: string[]; sourceIds: string[];
   difficulty: number; audioId?: string;
+  dialogue?: DialogueTurn[];
 }
 export interface AudioAsset {
   id: string; url: string; sourceId: string; transcript: string;

@@ -26,7 +26,9 @@ Les concepts dus sont triés par échéance, puis par ID en cas d’égalité. D
 
 ## Sélection cumulative
 
-`selectMixedExercises` reçoit le contenu, la sauvegarde, une leçon éventuelle, le nombre d’exercices, la date et des poids. Les poids ordinaires configurables sont `current: 55`, `previous: 25`, `review: 20`.
+`selectMixedExercises` reçoit le contenu, la sauvegarde, une leçon éventuelle, le nombre d’exercices, la date et des poids. Les poids génériques configurables sont `current: 55`, `previous: 25`, `review: 20`. Ils restent une fondation pour des entraînements mixtes, pas une obligation de fractionner chaque conversation.
+
+L’interface affinée conserve les six activités de chaque partie dans leur ordre conversationnel, puis ajoute jusqu’à deux rappels éligibles provenant de parties déjà validées. Le Centre de révision utilise la sélection générique sans leçon ciblée. Les quiz finaux suivent leurs douze activités rédigées pour couvrir l’unité entière. Ce choix rend la découverte cohérente et conserve le rappel cumulatif.
 
 Les proportions donnent des quotas arrondis ; avec peu d’exercices, elles ne peuvent pas être exactes. Les places restantes sont réattribuées aux banques disponibles. Le résultat ne contient pas de doublon.
 
@@ -36,11 +38,13 @@ Les proportions donnent des quotas arrondis ; avec peu d’exercices, elles ne p
 
 Toutes les catégories imposent que chaque concept testé ait déjà été introduit. Une écoute sans entrée audio vérifiée est exclue. Le moteur départage les candidats avec la dernière date de pratique et l’ID : même contenu, sauvegarde et date donnent le même résultat. Un manque de banque antérieure, notamment au début du parcours, ne bloque pas la séance.
 
+Les scènes d’introduction sont transitoires : ouvrir une leçon puis la quitter avant la pratique ne publie pas tous ses concepts dans la sauvegarde. La banque peut être préparée sur un état prospectif, mais les nouveaux concepts ne deviennent révisables qu’après la découverte et le passage à la pratique.
+
 Sans leçon ciblée, le Centre de révision privilégie les échéances et les points faibles, puis complète avec les concepts introduits. Le choix parcourt tout le corpus : ajouter de futurs mondes ne demande pas de recopier les anciens exercices dans chaque nouveau monde.
 
 ## Bilans, déblocage et récompenses
 
-Une leçon ordinaire demande au moins 60 % de bonnes réponses ; un `checkpoint` demande 80 %. Les prérequis doivent être terminés et tous les nouveaux concepts présentés. La vue de bilan indique le résultat et permet de recommencer. Un bilan requis peut ainsi verrouiller la suite sans empêcher la pratique des acquis.
+Une leçon ordinaire demande au moins 60 % de bonnes réponses ; un `checkpoint` demande 80 %. Les prérequis doivent être terminés et tous les nouveaux concepts présentés. Le quiz final de chaque unité comprend douze questions et déclenche un écran de clôture distinct du bilan d’une partie. Le résultat d’une nouvelle tentative est affiché tel quel, sans utiliser une ancienne validation pour annoncer une réussite récente. Le quiz peut verrouiller la suite sans empêcher la pratique des acquis.
 
 Une première réponse correcte à un ID d’exercice rapporte 10 XP ; refaire cet exercice ne rapporte plus d’XP. La première validation d’une leçon rapporte 25 XP. Les XP et les IDs déjà récompensés sont sauvegardés. Cette règle empêche la répétition d’un exercice pour des récompenses illimitées ; elle laisse les répétitions modifier la maîtrise, ce qui est leur finalité.
 

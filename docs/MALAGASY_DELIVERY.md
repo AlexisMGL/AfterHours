@@ -1,5 +1,7 @@
 # Malagasy Adventure — livraison du 25 octobre 2026
 
+> Rapport historique de la première livraison. La refonte du 26 octobre conserve le périmètre de trois unités mais remplace une partie de cette présentation et augmente le corpus : voir [le compte rendu actuel](MALAGASY_REFINEMENT.md). Les nombres et vérifications ci-dessous décrivent la version du 25 octobre.
+
 ## Ouvrir l’application
 
 Depuis la racine, lancer `start-local.cmd`, puis ouvrir **http://127.0.0.1:5173/malagasy-adventure**. La quatrième carte du catalogue `/` ouvre la même app. Les trois jeux précédents conservent leurs routes et leurs fonctionnalités.

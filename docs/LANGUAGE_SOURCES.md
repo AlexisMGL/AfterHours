@@ -45,3 +45,17 @@ Avant de présenter cette application comme une formation linguistique validée 
 
 La fiabilité est donc traçable et exploitable pour un prototype de trois unités, mais aucune certification externe ni relecture native n’est revendiquée. Les neuf unités restantes du premier monde et les mondes 2–20 sont planifiés, pas rédigés ni vérifiés.
 
+## Carte géographique
+
+Le contour de la carte provient de [Natural Earth, Admin 0 – Countries, échelle 1:10m](https://www.naturalearthdata.com/downloads/10m-cultural-vectors/10m-admin-0-countries/), extrait du [GeoJSON du dépôt officiel](https://github.com/nvkelso/natural-earth-vector/blob/master/geojson/ne_10m_admin_0_countries.geojson). Les [conditions d’utilisation](https://www.naturalearthdata.com/about/terms-of-use/) ont été réellement consultées le 25 octobre 2026 : les données sont dans le domaine public et peuvent être adaptées et redistribuées.
+
+Seule la géométrie de Madagascar est embarquée dans `src/malagasy/madagascar-coast.json`, simplifiée localement à 505 sommets répartis sur trois polygones : grande île, Nosy Be et Sainte-Marie. La côte et les coordonnées des destinations emploient la même projection. Les pastilles décalées pour éviter les collisions gardent un trait vers leur ancrage réel ; la seconde visite à Antananarivo est distincte de la première. Le monde 20 représente un bilan sur toute l’île et apparaît dans un cartouche, sans fausse position de ville. Les reliefs et palmiers sont des illustrations décoratives originales, pas une couche scientifique de végétation ou d’altitude.
+
+Cette référence est dans le registre `MAP_SOURCES`, fusionné aux Sources & Crédits de l’application. Aucune référence ou note de source n’est affichée au fil des questions, dialogues ou sur la carte elle-même.
+
+## Contrôle de l’emploi des pronoms — 26 octobre 2026
+
+L’entrée [aho du dictionnaire malgache](https://malagasyword.org/bins/teny2/aho) a été consultée pour contrôler une mise en scène des pronoms. Elle distingue l’emploi généralement postprédicatif de `aho` de la forme emphatique placée avant le prédicat. Le [manuel Peace Corps](https://fsi-languages.yojik.eu/languages/PeaceCorps/Malagasy-Sakalava/Malagasy-peace-corps/MG_Malagasy_Language_Lessons.pdf), p. 7, présente `aho`, `ianao` et `izy` comme pronoms sujets.
+
+La courte scène d’apprentissage cite donc explicitement ces mots entre guillemets ; elle ne présente plus `Aho.` comme une réponse autonome naturelle signifiant « moi ». Les répliques complètes continuent à réutiliser les formules déjà documentées, telles que `Avy any Frantsa aho.` La référence est conservée sous l’ID `dict-aho` dans les crédits, sans lien de source dans la scène.
+

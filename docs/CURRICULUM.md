@@ -4,7 +4,9 @@
 
 Le monde 1 contient douze unités prévues, dont les **trois premières sont jouables** : saluer et être poli ; se présenter ; construire de premières phrases. Les unités 4–12 et les mondes 2–20 sont des destinations futures, pas des cours disponibles. Leur présence sur la carte décrit une intention pédagogique.
 
-Ce premier corpus contient neuf leçons, 54 activités écrites originales, 18 concepts et 21 fiches de vocabulaire. Sept formats sont utilisés : choix, associations, remise en ordre, texte à trous, traduction, compréhension écrite et dialogue guidé. Aucun exercice d’écoute ou quiz culturel n’est présenté comme livré.
+Le corpus affiné contient neuf leçons, **24 scènes de découverte, 72 activités écrites originales, 18 concepts et 21 fiches de vocabulaire**. Les six parties ordinaires introduisent les expressions dans les dialogues de Lova et Mia. Chaque unité finit par un quiz de douze questions couvrant ses notions et des rappels antérieurs. Sept formats sont utilisés : choix, associations, remise en ordre, texte à trous, traduction, compréhension écrite et dialogue guidé. Aucun exercice d’écoute ou quiz culturel n’est présenté comme livré.
+
+La découverte précède le rappel noté. Les traductions françaises sont accessibles dans les bulles à la demande ; les notes grammaticales servent d’aide facultative. La partie ordinaire conserve ses activités dans l’ordre, puis ajoute jusqu’à deux rappels de parties déjà validées. Les sources restent dans l’écran « Sources & crédits » ; leurs IDs restent reliés aux contenus en interne.
 
 Le contenu enseigne d’abord le malgache standard. Les noms de destinations sont des thèmes de voyage ; ils ne constituent ni une carte des divisions administratives ni une succession de dialectes enseignés.
 

@@ -1,5 +1,7 @@
 import type { AudioAsset, Concept, Content, Exercise, ExerciseType, Lesson, Source, Unit, Vocabulary } from './types';
 import { WORLDS } from './worlds';
+import { EXERCISE_DIALOGUES, LESSON_SCENES, SHORT_QUESTIONS } from './dialogue-content';
+import { MAP_SOURCES } from './map-sources';
 
 const PC = 'peacecorps-intro', KEENAN = 'keenan-subject-final', ARTICLE = 'parker-article';
 const dictionary = (word: string, supports: string): Source => ({
@@ -31,6 +33,7 @@ export const SOURCES: Source[] = [
   dictionary('misaotra', 'Remercier ; emploi poli recoupé avec Peace Corps.'),
   dictionary('tompoko', 'Formule d’adresse respectueuse sans genre grammatical.'),
   dictionary('anarana', 'Nom, formes anarako et anaranao dans la morphologie.'),
+  dictionary('aho', 'Pronom sujet généralement après le prédicat ; contrôle de son emploi pour ne pas présenter le mot isolé comme une réplique naturelle « moi ». Dans la scène de découverte, les pronoms sont explicitement cités comme mots à repérer.'),
   dictionary('Frantsa', 'Toponyme Frantsa : France, distinct de frantsay.'),
   dictionary('ny', 'Article ny ; distinct du suffixe possessif -ny.'),
   dictionary('tsy', 'Négation devant le prédicat dans les modèles simples.'),
@@ -39,6 +42,7 @@ export const SOURCES: Source[] = [
     url: 'https://whc.unesco.org/en/list/950/', category: 'geography', consulted: true,
     supports: 'Thème du monde Ambohimanga : patrimoine royal et lieu sacré ; position géographique.',
     license: 'Conditions UNESCO ; description paraphrasée, aucune photographie ou carte reprise.' },
+  ...MAP_SOURCES,
 ];
 
 const L = {
@@ -67,7 +71,7 @@ export const CONCEPTS: Concept[] = [
   concept(C.no, 'Répondre non', 'vocabulary', L.welcome, 'Donner une réponse négative autonome.', [PC], [], 'Tsia', 'Non'),
   concept(C.respect, 'S’adresser avec respect', 'vocabulary', L.welcome, 'Reconnaître une marque d’adresse respectueuse.', ['dict-tompoko'], [], 'Tompoko', 'Adresse respectueuse'),
   concept(C.name, 'Échanger les prénoms', 'communication', L.name, 'Demander et donner un nom avec une formule complète.', [PC, 'dict-anarana'], [C.hello], 'Iza no anaranao?', 'Comment t’appelles-tu ?'),
-  concept(C.pronouns, 'Aho, ianao, izy', 'grammar', L.name, 'Distinguer je, tu/vous singulier et il/elle.', [PC], [], 'aho / ianao / izy', 'je / tu-vous / il-elle'),
+  concept(C.pronouns, 'Aho, ianao, izy', 'grammar', L.name, 'Distinguer je, tu/vous singulier et il/elle.', [PC, 'dict-aho'], [], 'aho / ianao / izy', 'je / tu-vous / il-elle'),
   concept(C.origin, 'Dire d’où l’on vient', 'communication', L.origin, 'Demander et indiquer un lieu d’origine.', [PC], [C.pronouns], 'Avy aiza ianao?', 'D’où viens-tu ?'),
   concept(C.france, 'Nommer la France', 'vocabulary', L.origin, 'Distinguer pays d’origine et nationalité.', ['dict-frantsa'], [], 'Frantsa', 'France'),
   concept(C.predicate, 'Le prédicat avant le sujet', 'grammar', L.predicate, 'Construire un énoncé nominal ou adjectival simple, sans imposer de copule.', [PC, KEENAN], [C.pronouns]),
@@ -88,7 +92,7 @@ export const VOCABULARY: Vocabulary[] = [
   vocab('word.eny', 'Eny', 'Oui', 'Réponse affirmative autonome.', C.yes, 'unit-01', [PC]),
   vocab('word.tsia', 'Tsia', 'Non', 'Réponse autonome, à distinguer de tsy dans une phrase.', C.no, 'unit-01', [PC]),
   vocab('word.tompoko', 'Tompoko', 'Adresse respectueuse', 'Peut accompagner une salutation ; ne marque pas le genre.', C.respect, 'unit-01', ['dict-tompoko']),
-  vocab('word.aho', 'aho', 'je', 'Pronom sujet, par exemple dans Avy any Frantsa aho.', C.pronouns, 'unit-02', [PC]),
+  vocab('word.aho', 'aho', 'je', 'Pronom sujet, par exemple dans Avy any Frantsa aho.', C.pronouns, 'unit-02', [PC, 'dict-aho']),
   vocab('word.ianao', 'ianao', 'tu / vous (une personne)', 'Le français tutoie ou vouvoie selon la situation.', C.pronouns, 'unit-02', [PC]),
   vocab('word.izy', 'izy', 'il / elle', 'Ne distingue pas le masculin et le féminin.', C.pronouns, 'unit-02', [PC]),
   vocab('word.anarako', 'anarako', 'mon nom', 'Dans Lova no anarako : je m’appelle Lova.', C.name, 'unit-02', [PC, 'dict-anarana']),
@@ -103,12 +107,13 @@ export const VOCABULARY: Vocabulary[] = [
   vocab('word.ve', 've', 'marqueur de question oui/non', 'Mpiofana ve ianao? : es-tu stagiaire ?', C.question, 'unit-03', [PC, 'dict-ve']),
 ];
 const instructions: Record<ExerciseType, string> = {
-  choice: 'Choisis la bonne réponse.', match: 'Associe chaque expression à son sens.', order: 'Touche les mots dans le bon ordre.',
-  cloze: 'Complète avec le mot manquant.', translate: 'Écris une traduction.', reading: 'Lis le court échange, puis réponds.',
-  dialogue: 'À toi de répondre dans la conversation.', culture: 'Une découverte entre deux leçons.', listening: 'Écoute, puis réponds.',
+  choice: 'À toi !', match: 'Les mots se rencontrent', order: 'Construis la réponse',
+  cloze: 'Un mot manque…', translate: 'À toi de parler', reading: 'Entre les bulles',
+  dialogue: 'La conversation continue', culture: 'Une découverte', listening: 'À l’écoute',
 };
 function exercise(id: string, type: ExerciseType, question: string, answers: string[], concepts: string[], explanation: string, extra: Partial<Exercise> = {}): Exercise {
-  return { id, type, question, answers, concepts, explanation, prompt: instructions[type], sourceIds: [PC], difficulty: 1, ...extra };
+  return { id, type, answers, concepts, explanation, prompt: instructions[type], sourceIds: [PC], difficulty: 1, ...extra,
+    question: SHORT_QUESTIONS[id] ?? question, context: undefined, dialogue: extra.dialogue ?? EXERCISE_DIALOGUES[id] };
 }
 export const EXERCISES: Exercise[] = [
 
@@ -132,6 +137,12 @@ export const EXERCISES: Exercise[] = [
   exercise('exercise-01-03-d', 'cloze', 'Pour répondre oui : « ___ »', ['Eny'], [C.yes], 'Eny est la réponse affirmative apprise dans cette unité.'),
   exercise('exercise-01-03-e', 'reading', 'Dans cet échange, quelle expression remercie ?', ['Misaotra'], [C.welcome, C.thanks, C.respect], 'Misaotra exprime le remerciement ; tompoko précise l’adresse respectueuse.', { context: 'Lova : Tonga soa!\nToi : Misaotra, tompoko.', choices: ['Tonga soa', 'Tompoko', 'Misaotra'], sourceIds: [PC, 'dict-tompoko'] }),
   exercise('exercise-01-03-f', 'choice', 'Dans les mots étudiés ici, quel lien retenir entre « i » et « y » final ?', ['Ils renvoient à la même famille de son « i »'], [C.spelling], 'Le manuel présente i et y final ensemble. Ce repère écrit ne mesure pas une compétence d’écoute.', { choices: ['Le y final est toujours une consonne française', 'Ils renvoient à la même famille de son « i »', 'Le i se prononce comme « ou »'] }),
+  exercise('exercise-01-03-g', 'dialogue', 'Refuse avec respect.', ['Tsia, tompoko.'], [C.no, C.respect], 'Tsia répond non ; tompoko ajoute une adresse respectueuse.', { choices: ['Eny, tompoko.', 'Tsia, tompoko.', 'Tonga soa!'], dialogue: [{ speaker: 'mia', text: '…', translation: 'Tu déclines la place proposée d’un geste.' }], sourceIds: [PC, 'dict-tompoko'] }),
+  exercise('exercise-01-03-h', 'order', 'Accueille Mia : « Bienvenue ! »', ['Tonga soa'], [C.welcome], 'Les deux mots tonga soa souhaitent la bienvenue.', { tokens: ['soa', 'Tonga'], dialogue: [{ speaker: 'mia', text: 'Salama!', translation: 'Bonjour !' }] }),
+  exercise('exercise-01-03-i', 'choice', 'Que fait Lova ?', ['Il salue Mia'], [C.hello], 'Salama ouvre la rencontre ; ce n’est ni un départ ni un remerciement.', { choices: ['Il remercie Mia', 'Il salue Mia', 'Il prend congé'], dialogue: [{ speaker: 'lova', text: 'Salama!', translation: 'Bonjour !' }], sourceIds: [PC, 'dict-salama'] }),
+  exercise('exercise-01-03-j', 'cloze', 'Complète : « Veloma, ___ » pour rester respectueux.', ['tompoko'], [C.goodbye, C.respect], 'Veloma prend congé ; tompoko s’adresse à l’autre personne avec respect.', { dialogue: [{ speaker: 'lova', text: 'Veloma!', translation: 'Au revoir !' }, { speaker: 'mia', text: 'Veloma, …', translation: 'Au revoir, avec une adresse respectueuse.' }], sourceIds: [PC, 'dict-tompoko'] }),
+  exercise('exercise-01-03-k', 'reading', 'Qui vient d’arriver ?', ['Mia'], [C.welcome, C.thanks], 'Lova accueille avec tonga soa ; Mia, qui vient d’arriver, remercie.', { choices: ['Mia', 'Lova', 'Personne : ils partent'], dialogue: [{ speaker: 'lova', text: 'Tonga soa!', translation: 'Bienvenue !' }, { speaker: 'mia', text: 'Misaotra!', translation: 'Merci !' }] }),
+  exercise('exercise-01-03-l', 'match', 'Relie les réponses à leur sens.', [], [C.yes, C.no, C.please], 'Eny répond oui, tsia répond non ; azafady sert à demander avec politesse ou à s’excuser.', { pairs: [{ left: 'Eny', right: 'Oui' }, { left: 'Tsia', right: 'Non' }, { left: 'Azafady', right: 'Excusez-moi' }], dialogue: [{ speaker: 'mia', text: 'Eny.', translation: 'Oui.' }, { speaker: 'lova', text: 'Tsia.', translation: 'Non.' }], sourceIds: [PC, 'dict-azafady'] }),
 
   exercise('exercise-02-01-a', 'choice', 'Que demande « Iza no anaranao? » ?', ['Comment t’appelles-tu ?'], [C.name], 'La question demande le nom de la personne à qui l’on parle.', { choices: ['D’où viens-tu ?', 'Comment t’appelles-tu ?', 'Veux-tu partir ?'], sourceIds: [PC, 'dict-anarana'] }),
   exercise('exercise-02-01-b', 'order', 'Présente-toi sous le prénom Lova : « Je m’appelle Lova. »', ['Lova no anarako'], [C.name], 'On apprend « prénom + no anarako » comme un ensemble. No n’est pas un verbe être.', { tokens: ['anarako', 'Lova', 'no'], sourceIds: [PC, ARTICLE] }),
@@ -153,6 +164,12 @@ export const EXERCISES: Exercise[] = [
   exercise('exercise-02-03-d', 'match', 'Associe ces petits repères de conversation.', [], [C.name, C.pronouns], 'Le suffixe change dans anarako/anaranao ; izy ne distingue pas il et elle.', { pairs: [{ left: 'anarako', right: 'mon nom' }, { left: 'anaranao', right: 'ton / votre nom' }, { left: 'izy', right: 'il / elle' }], sourceIds: [PC, 'dict-anarana'] }),
   exercise('exercise-02-03-e', 'order', 'Pose la question : « D’où viens-tu ? »', ['Avy aiza ianao'], [C.origin, C.pronouns], 'La question de provenance apprise est Avy aiza ianao?', { tokens: ['ianao', 'aiza', 'Avy'] }),
   exercise('exercise-02-03-f', 'dialogue', 'Tu quittes Lova après votre première conversation. Quelle phrase convient ?', ['Veloma, tompoko.'], [C.goodbye, C.respect], 'Une conversation se termine avec veloma ; tonga soa servirait à accueillir.', { context: 'Vous avez échangé prénoms et origines. Il est temps de prendre congé.', choices: ['Tonga soa!', 'Iza no anaranao?', 'Veloma, tompoko.'], sourceIds: [PC, 'dict-tompoko'] }),
+  exercise('exercise-02-03-g', 'cloze', 'Complète la réponse de Mia : « Mia no ___ »', ['anarako'], [C.name], 'Anarako signifie mon nom ; anaranao désigne le nom de la personne à qui l’on parle.', { dialogue: [{ speaker: 'lova', text: 'Iza no anaranao?', translation: 'Comment t’appelles-tu ?' }, { speaker: 'mia', text: 'Mia no …', translation: 'Je m’appelle Mia.' }], sourceIds: [PC, 'dict-anarana'] }),
+  exercise('exercise-02-03-h', 'order', 'Tu joues Lova : présente-toi.', ['Lova no anarako'], [C.name], 'Pour donner son nom : prénom + no anarako.', { tokens: ['no', 'Lova', 'anarako'], dialogue: [{ speaker: 'mia', text: 'Iza no anaranao?', translation: 'Comment t’appelles-tu ?' }], sourceIds: [PC, 'dict-anarana', ARTICLE] }),
+  exercise('exercise-02-03-i', 'reading', 'Mia parle de quel pays ?', ['La France'], [C.origin, C.france], 'Frantsa est le nom de la France. La phrase indique la provenance.', { choices: ['La France', 'Madagascar', 'Aucun pays'], dialogue: [{ speaker: 'lova', text: 'Avy aiza ianao?', translation: 'D’où viens-tu ?' }, { speaker: 'mia', text: 'Avy any Frantsa aho.', translation: 'Je viens de France.' }], sourceIds: [PC, 'dict-frantsa'] }),
+  exercise('exercise-02-03-j', 'match', 'Qui parle de qui ?', [], [C.pronouns], 'Aho : je ; ianao : tu ou vous pour une personne ; izy : il ou elle.', { pairs: [{ left: 'aho', right: 'je' }, { left: 'ianao', right: 'tu / vous' }, { left: 'izy', right: 'il / elle' }], dialogue: [{ speaker: 'lova', text: 'Aho.', translation: 'Je.' }, { speaker: 'mia', text: 'Ianao.', translation: 'Tu · vous.' }] }),
+  exercise('exercise-02-03-k', 'dialogue', 'Commence une rencontre avec respect.', ['Salama, tompoko.'], [C.hello, C.respect], 'Salama salue ; tompoko ajoute une adresse respectueuse.', { choices: ['Salama, tompoko.', 'Veloma, tompoko.', 'Tsia.'], dialogue: [{ speaker: 'lova', text: 'Salama!', translation: 'Bonjour !' }], sourceIds: [PC, 'dict-tompoko'] }),
+  exercise('exercise-02-03-l', 'cloze', 'Complète : « Avy ___ Frantsa aho »', ['any'], [C.origin, C.france, C.pronouns], 'Le modèle appris est avy any + lieu + aho.', { dialogue: [{ speaker: 'lova', text: 'Avy aiza ianao?', translation: 'D’où viens-tu ?' }, { speaker: 'mia', text: 'Avy … Frantsa aho.', translation: 'Je viens de France.' }], sourceIds: [PC, 'dict-frantsa'] }),
 
   exercise('exercise-03-01-a', 'order', 'Construis : « Je suis stagiaire. »', ['Mpiofana aho'], [C.predicate, C.trainee, C.pronouns], 'Mpiofana est le prédicat nominal ; aho est le sujet. On n’ajoute pas de verbe être dans cette phrase.', { tokens: ['aho', 'Mpiofana'], sourceIds: [PC, KEENAN] }),
   exercise('exercise-03-01-b', 'choice', 'Dans « Mpiofana aho », quel mot est le sujet ?', ['aho'], [C.predicate, C.trainee, C.pronouns], 'Aho indique de qui on parle : je. Mpiofana donne le statut.', { choices: ['mpiofana', 'aho', 'Un verbe être écrit'], sourceIds: [PC, KEENAN] }),
@@ -174,6 +191,12 @@ export const EXERCISES: Exercise[] = [
   exercise('exercise-03-03-d', 'translate', 'Traduis en français : « Mpiofana ve ianao? »', ['Es-tu stagiaire', 'Êtes-vous stagiaire', 'Est-ce que tu es stagiaire', 'Est-ce que vous êtes stagiaire', 'Tu es stagiaire', 'Vous êtes stagiaire'], [C.question, C.trainee, C.pronouns], 'Ve marque une question oui/non ; le français peut tutoyer ou vouvoyer. La ponctuation interrogative est facultative dans la saisie.'),
   exercise('exercise-03-03-e', 'cloze', 'Lova demande ton origine. Complète « Avy ___ ianao? »', ['aiza'], [C.origin, C.pronouns], 'Avy aiza ianao est la question de provenance, réutilisée avec les nouveaux acquis.'),
   exercise('exercise-03-03-f', 'match', 'Associe les mots-outils à leur fonction.', [], [C.article, C.negation, C.question], 'Ny détermine un nom ; tsy nie le prédicat ; ve marque la question oui/non dans ce modèle.', { pairs: [{ left: 'ny', right: 'article devant le nom' }, { left: 'tsy', right: 'négation du prédicat' }, { left: 've', right: 'question oui/non' }], sourceIds: [PC, 'dict-ny', 'dict-tsy', ARTICLE] }),
+  exercise('exercise-03-03-g', 'choice', 'Que fait « ny » devant mpiofana ?', ['Il détermine le nom'], [C.article, C.trainee], 'Ny est ici un article devant le nom, sans marque de genre ou de nombre.', { choices: ['Il nie la phrase', 'Il détermine le nom', 'Il pose une question'], dialogue: [{ speaker: 'lova', text: 'Salama ny mpiofana.', translation: 'Le ou la stagiaire est en bonne santé.', highlight: 'ny' }], sourceIds: [PC, ARTICLE, 'dict-ny'] }),
+  exercise('exercise-03-03-h', 'translate', 'Écris : « Je suis en bonne santé. »', ['Salama aho'], [C.predicate, C.hello, C.pronouns], 'Salama est le prédicat adjectival ; aho est le sujet.', { dialogue: [{ speaker: 'mia', text: '…', translation: 'Tu donnes de tes nouvelles : tu es en bonne santé.' }], sourceIds: [PC, KEENAN, 'dict-salama'] }),
+  exercise('exercise-03-03-i', 'order', 'Réponds : « Je ne suis pas stagiaire. »', ['Tsy mpiofana aho'], [C.negation, C.predicate, C.trainee, C.pronouns], 'Tsy se place devant le prédicat, puis vient le sujet aho.', { tokens: ['aho', 'Tsy', 'mpiofana'], dialogue: [{ speaker: 'lova', text: 'Mpiofana ve ianao?', translation: 'Es-tu stagiaire ?' }], sourceIds: [PC, 'dict-tsy'] }),
+  exercise('exercise-03-03-j', 'dialogue', 'Tu viens de France : réponds à Lova.', ['Avy any Frantsa aho.'], [C.origin, C.france, C.pronouns], 'La réponse donne une provenance : avy any + lieu + aho.', { choices: ['Mia no anarako.', 'Avy any Frantsa aho.', 'Mpiofana aho.'], dialogue: [{ speaker: 'lova', text: 'Avy aiza ianao?', translation: 'D’où viens-tu ?' }], sourceIds: [PC, 'dict-frantsa'] }),
+  exercise('exercise-03-03-k', 'reading', 'Quel est le statut de Mia dans cette scène ?', ['Elle n’est pas stagiaire'], [C.name, C.origin, C.question, C.negation, C.no, C.trainee], 'Mia donne son nom et son origine, puis dit qu’elle n’est pas stagiaire avec tsia et tsy.', { choices: ['Elle est stagiaire', 'Elle n’est pas stagiaire', 'Elle donne seulement son prénom'], dialogue: [{ speaker: 'mia', text: 'Mia no anarako. Avy any Frantsa aho.', translation: 'Je m’appelle Mia. Je viens de France.' }, { speaker: 'lova', text: 'Mpiofana ve ianao?', translation: 'Es-tu stagiaire ?' }, { speaker: 'mia', text: 'Tsia, tsy mpiofana aho.', translation: 'Non, je ne suis pas stagiaire.' }], sourceIds: [PC, 'dict-frantsa', 'dict-tsy'] }),
+  exercise('exercise-03-03-l', 'translate', 'Tu es Mia : écris ton prénom dans une phrase.', ['Mia no anarako'], [C.name], 'La rencontre peut commencer par Mia no anarako : je m’appelle Mia.', { dialogue: [{ speaker: 'lova', text: 'Salama! Iza no anaranao?', translation: 'Bonjour ! Comment t’appelles-tu ?' }], sourceIds: [PC, 'dict-anarana'] }),
 ];
 
 
@@ -183,7 +206,7 @@ function lesson(id: string, unitId: string, title: string, description: string, 
   return { id, worldId: 'world-01', unitId, title, description, kind, introduces, reviews, prerequisites,
     objectives: [...introduces, ...reviews].map(conceptId => CONCEPTS.find(item => item.id === conceptId)!.objective),
     exerciseIds: EXERCISES.filter(item => item.id.startsWith(prefix + '-')).map(item => item.id), notes,
-    estimatedMinutes: kind === 'checkpoint' ? 5 : 7, sourceIds };
+    estimatedMinutes: kind === 'checkpoint' ? 8 : 6, sourceIds, scenes: LESSON_SCENES[id] };
 }
 export const LESSONS: Lesson[] = [
   lesson(L.greetings, 'unit-01', 'Les mots qui ouvrent les portes', 'Quatre expressions pour ta première rencontre.', 'learn',
@@ -198,7 +221,7 @@ export const LESSONS: Lesson[] = [
       { title: 'La réponse de l’invité', body: 'Tonga soa signifie bienvenue. Misaotra répond à cet accueil par un remerciement. Eny signifie oui, tsia signifie non.', example: 'Misaotra, tompoko.', translation: 'Merci, avec une adresse respectueuse.' },
       { title: 'Tompoko', body: 'Ce mot marque le respect dans l’adresse à une personne. Il peut s’adresser aussi bien à une femme qu’à un homme.' },
     ], [PC, 'dict-tompoko']),
-  lesson(L.greetingReview, 'unit-01', 'Escale : le premier échange', 'Vérifie tes repères avant de te présenter.', 'checkpoint', [],
+  lesson(L.greetingReview, 'unit-01', 'Quiz final · Le premier échange', 'Douze défis pour terminer l’unité 1.', 'checkpoint', [],
     [C.hello, C.goodbye, C.thanks, C.please, C.spelling, C.welcome, C.yes, C.no, C.respect], [L.welcome], [
       { title: 'Ton premier carnet de voyage', body: 'Tu peux saluer, remercier, demander avec politesse, comprendre un accueil et prendre congé. Cette escale mélange ces intentions. Réussis au moins 80 % des activités pour ouvrir la suite.' },
     ], [PC, 'dict-tompoko', 'dict-azafady']),
@@ -214,7 +237,7 @@ export const LESSONS: Lesson[] = [
       { title: 'Une origine, un modèle', body: 'Dans le modèle de réponse étudié : avy any + lieu + aho. Frantsa est le pays France. Le lieu d’origine et la nationalité sont deux informations différentes.' },
       { title: 'Les mots connus voyagent avec toi', body: 'Commence avec salama, donne ton prénom puis ton origine. Tu peux remercier avec misaotra et prendre congé avec veloma.' },
     ], [PC, 'dict-frantsa']),
-  lesson(L.introReview, 'unit-02', 'Escale : fais connaissance', 'Noms, origines et politesse dans une même rencontre.', 'checkpoint', [],
+  lesson(L.introReview, 'unit-02', 'Quiz final · Fais connaissance', 'Douze défis pour terminer l’unité 2.', 'checkpoint', [],
     [C.name, C.pronouns, C.origin, C.france, C.hello, C.goodbye, C.respect], [L.origin], [
       { title: 'Ta première conversation', body: 'Réponds à propos du personnage de la scène. Une question sur le nom attend un prénom ; une question sur l’origine attend un lieu. La révision réutilise aussi les mots de la première unité. Seuil : 80 %.' },
     ], [PC, 'dict-anarana', 'dict-frantsa', 'dict-tompoko']),
@@ -232,7 +255,7 @@ export const LESSONS: Lesson[] = [
       { title: 'Tsia et tsy : deux rôles', body: 'Tsia répond non. Tsy vient devant le prédicat pour nier la phrase. On peut utiliser les deux dans une réponse complète.', example: 'Tsia, tsy mpiofana aho.', translation: 'Non, je ne suis pas stagiaire.' },
       { title: 'Changer de point de vue', body: 'La question emploie ianao parce que Lova s’adresse à toi. Ta réponse emploie aho parce que tu parles de toi.', example: 'Eny, mpiofana aho.', translation: 'Oui, je suis stagiaire.' },
     ], [PC, 'dict-tsy']),
-  lesson(L.sentenceReview, 'unit-03', 'Escale : une vraie petite rencontre', 'Un bilan cumulatif des trois premières unités.', 'checkpoint', [],
+  lesson(L.sentenceReview, 'unit-03', 'Quiz final · Une vraie rencontre', 'Douze défis pour terminer l’unité 3 et relier tous tes acquis.', 'checkpoint', [],
     [C.name, C.origin, C.france, C.pronouns, C.hello, C.predicate, C.trainee, C.article, C.negation, C.question, C.no], [L.questions], [
       { title: 'Trois unités, un premier socle', body: 'Tu peux te présenter, comprendre une origine, construire un énoncé nominal simple, poser une question oui/non et nier un statut. Seuil : 80 %. Les unités 4 à 12 restent à écrire et à faire relire.' },
     ], [PC, KEENAN, ARTICLE, 'dict-ny', 'dict-tsy', 'dict-frantsa']),

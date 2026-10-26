@@ -6,6 +6,10 @@ Le dépôt intègre une quatrième app au catalogue Afterhours, compatible avec 
 
 Les fondations comprennent des modèles typés, des références stables, un registre de concepts et de sources, des exercices écrits variés, des bilans, un mélange cumulatif, une maîtrise distincte des XP, une planification espacée déterministe et une sauvegarde locale avec export/import JSON validé. La carte, le lexique, les révisions et les statistiques rendent cette structure inspectable.
 
+La refonte dialoguée conserve neuf leçons et introduit 24 scènes de Lova et Mia, 72 activités écrites et trois quiz finaux de douze questions. Les traductions et aides sont facultatives. De courtes réactions cartoon, un son de succès à deux notes et une clôture d’unité rendent la progression plus perceptible. La carte utilise désormais un vrai littoral Natural Earth et une projection commune aux escales. Les 16 sources sont regroupées uniquement dans les crédits ; les IDs restent internes au contenu.
+
+[Le fichier propre aux futurs agents](../src/malagasy/AGENTS.md) conserve la vision initiale et les nouveaux choix produit. [Le compte rendu de la refonte](MALAGASY_REFINEMENT.md) décrit les changements et accueille les résultats de vérification de cette version.
+
 Les notes de sources et les limites de validation linguistique sont détaillées dans [LANGUAGE_SOURCES.md](LANGUAGE_SOURCES.md). Les résultats effectifs des tests et le nombre exact d’activités sont à vérifier dans la livraison et le rapport de validation, pas à déduire de l’objectif initial de 20 mondes.
 
 ## Limites connues
@@ -25,8 +29,8 @@ Les notes de sources et les limites de validation linguistique sont détaillées
 
 1. **Faire relire les trois unités** par un malgachophone compétent en enseignement du standard, conserver les remarques et corriger le corpus avant de l’étendre.
 2. **Produire un premier lot audio autorisé** : salutations et présentations, transcription, interprète, variété linguistique, permission et contrôle de qualité. Ajouter ensuite de vraies écoutes.
-3. **Ajouter les unités 4–6** : famille, maison et aliments. Vérifier possession, terminologie familiale et constructions spatiales ; intégrer systématiquement les unités 1–3 aux révisions.
-4. **Compléter les unités 7–12** et un défi final du monde 1, avec conversations cumulatives et exercices de compréhension qui s’appuient sur un audio disponible.
+3. **Rester sur les unités 1–3 tant que l’utilisateur maintient ce périmètre** : affiner dialogues, retours, mémorisation et lisibilité à partir des essais réels.
+4. **Après une nouvelle demande d’extension**, ajouter les unités 4–6 (famille, maison, aliments), puis 7–12 et le défi final. Vérifier possession, terminologie familiale et constructions spatiales ; réutiliser les premiers acquis.
 5. **Mesurer la rétention** et améliorer le modèle de maîtrise, notamment la séparation de séances espacées et la diversité des modes de rappel.
 6. **Développer les mondes 2–5**, puis réaliser le premier bilan de conversation, avant de produire les niveaux ultérieurs en série.
 7. Envisager des comptes et une synchronisation uniquement après validation de la pédagogie et d’un besoin réel. Prévoir alors migration de sauvegarde et résolution de conflits.

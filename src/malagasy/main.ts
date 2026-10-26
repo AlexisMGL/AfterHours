@@ -1,25 +1,25 @@
 import './style.css';
+import './dialogue.css';
+import './map.css';
 import { CONTENT } from './content';
 import type { Exercise, Lesson, Progress, World } from './types';
 import { lessonAvailable, introduceLesson, recordAnswer, completeLesson, selectMixedExercises, dueConcepts, conceptStatus, playerLevel, streakDays, validateAnswer } from './engine';
 import { loadProgress, saveProgress, parseSave, serializeSave, loadRecovery } from './storage';
-import { icon, townArt, islandArt, ISLAND_PATH } from './art';
-import { escapeHtml as e, emptyDraft, renderTask, answerValue, hasAnswer, type AnswerDraft } from './exercise-view';
-import { feedbackSound, MalagasyAudio } from './audio';
+import { icon, townArt } from './art';
+import { renderWorldMap, miniIslandArt } from './map';
+import { escapeHtml as e, emptyDraft, renderAnswerControls, answerValue, hasAnswer } from './exercise-view';
+import { feedbackSound, completionSound, MalagasyAudio } from './audio';
+import { renderLearningSession, sessionPassed } from './lesson-view';
+import type { LearningSession } from './session';
+import { characterArt } from './characters';
 
 type View = 'path' | 'worlds' | 'reviews' | 'vocabulary' | 'stats' | 'sources' | 'backup';
-interface Session {
-  lesson: Lesson; exercises: Exercise[]; index: number; correct: number;
-  draft: AnswerDraft; answered: boolean; wasCorrect: boolean; stage: 'notes' | 'exercise' | 'done';
-  review: boolean; xpBefore: number;
-  audioReady?: boolean;
-}
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const loaded = loadProgress(CONTENT);
 let progress = loaded.progress;
 let storageWarning = loaded.error ?? '';
 let view: View = readView();
-let session: Session | null = null;
+let session: LearningSession | null = null;
 let pendingImport: Progress | null = null;
 let search = '';
 const audio = new MalagasyAudio(CONTENT.audio);
@@ -60,7 +60,7 @@ function navigate(destination: View): void {
 
 function sidebar(): string {
   const links: [View, string, string][] = [['path', 'path', 'Mon parcours'], ['worlds', 'map', 'Carte des mondes'], ['reviews', 'review', 'Révisions'], ['vocabulary', 'book', 'Mon lexique'], ['stats', 'stats', 'Ma progression']];
-  return `<aside class="ma-sidebar"><a class="ma-brand" href="/malagasy-adventure"><span class="ma-brand-icon">${icon('leaf', 26)}</span><span>malagasy<span>ADVENTURE</span></span></a><div class="ma-sidebar-label">LE VOYAGE</div><nav aria-label="Navigation principale">${links.map(([id, symbol, title]) => `<button data-view="${id}" class="${view === id && !session ? 'active' : ''}" ${view === id && !session ? 'aria-current="page"' : ''}>${icon(symbol)}<span>${title}</span>${id === 'reviews' && dueConcepts(progress).length ? `<b>${dueConcepts(progress).length}</b>` : ''}</button>`).join('')}</nav><div class="ma-sidebar-postcard">${islandArt()}<span>UNE ÎLE. MILLE RENCONTRES.</span><p>Le voyage commence<br>par un <em>salama.</em></p><small>Français → Malgache standard</small></div><nav class="ma-sidebar-bottom" aria-label="Ressources"><button data-view="sources" ${view === 'sources' ? 'aria-current="page"' : ''}>${icon('source')}<span>Sources & crédits</span></button><button data-view="backup" ${view === 'backup' ? 'aria-current="page"' : ''}>${icon('save')}<span>Ma sauvegarde</span></button><a href="/">↗<span>Retour à Afterhours</span></a></nav><div class="ma-edition"><span class="ma-online-dot"></span> CARNET N° 001 <span>ÉDITION DÉCOUVERTE</span></div></aside>`;
+  return `<aside class="ma-sidebar"><a class="ma-brand" href="/malagasy-adventure"><span class="ma-brand-icon">${icon('leaf', 26)}</span><span>malagasy<span>ADVENTURE</span></span></a><div class="ma-sidebar-label">LE VOYAGE</div><nav aria-label="Navigation principale">${links.map(([id, symbol, title]) => `<button data-view="${id}" class="${view === id && !session ? 'active' : ''}" ${view === id && !session ? 'aria-current="page"' : ''}>${icon(symbol)}<span>${title}</span>${id === 'reviews' && dueConcepts(progress).length ? `<b>${dueConcepts(progress).length}</b>` : ''}</button>`).join('')}</nav><div class="ma-sidebar-postcard">${miniIslandArt()}<span>UNE ÎLE. MILLE RENCONTRES.</span><p>Le voyage commence<br>par un <em>salama.</em></p><small>Français → Malgache standard</small></div><nav class="ma-sidebar-bottom" aria-label="Ressources"><button data-view="sources" ${view === 'sources' ? 'aria-current="page"' : ''}>${icon('source')}<span>Sources & crédits</span></button><button data-view="backup" ${view === 'backup' ? 'aria-current="page"' : ''}>${icon('save')}<span>Ma sauvegarde</span></button><a href="/">↗<span>Retour à Afterhours</span></a></nav><div class="ma-edition"><span class="ma-online-dot"></span> CARNET N° 001 <span>ÉDITION DÉCOUVERTE</span></div></aside>`;
 }
 function topbar(): string {
   return `<header class="ma-topbar"><div class="ma-breadcrumb">MADAGASCAR <span>/</span> <strong>${session ? 'EN LEÇON' : ({ path: 'MON PARCOURS', worlds: 'LES DESTINATIONS', reviews: 'LES RÉVISIONS', vocabulary: 'MON LEXIQUE', stats: 'MA PROGRESSION', sources: 'LES RÉFÉRENCES', backup: 'MA SAUVEGARDE' })[view]}</strong></div><div class="ma-top-stats"><span title="Jours consécutifs d’activité" class="ma-streak">${icon('flame', 18)} <b>${streakDays(progress)}</b><span>jour${streakDays(progress) > 1 ? 's' : ''}</span></span><span class="ma-xp">${icon('star', 18)}<b>${progress.xp}</b> XP</span><button class="ma-sound" data-action="mute" aria-label="${progress.settings.muted ? 'Activer les sons' : 'Couper les sons'}" title="Sons de l’interface" aria-pressed="${!progress.settings.muted}">${icon('sound', 18)}${progress.settings.muted ? '<span class="ma-mute-slash"></span>' : ''}</button><span class="ma-avatar" title="Voyageur · niveau ${playerLevel(progress.xp)}">V<span>${playerLevel(progress.xp)}</span></span></div></header>`;
@@ -72,26 +72,23 @@ function pageHeading(kicker: string, title: string, description: string): string
 function pathPage(): string {
   const next = nextLesson(), done = activeLessons().filter(lesson => completed(lesson.id)).length;
   const first = CONTENT.worlds[0];
-  return `<section class="ma-welcome"><div><span class="ma-eyebrow"><i></i> TONGA SOA · BIENVENUE</span><h1 tabindex="-1">Un nouveau monde.<br><em>Un mot à la fois.</em></h1><p>Apprenez le malgache. Rencontrez une île.<br>Et faites de chaque petit pas une aventure.</p></div><div class="ma-welcome-stamp">${icon('compass', 35)}<span>LE GOÛT<br>DE LA DÉCOUVERTE</span></div></section><section class="ma-world-hero"><div class="ma-hero-copy"><div class="ma-hero-kicker"><span>MONDE 01</span> LES HAUTES TERRES</div><h2>${e(first.name)}</h2><p>Les premiers mots ouvrent les premières portes.</p><div class="ma-hero-progress"><span>${done} / ${activeLessons().length} leçons explorées</span><span>${percent(done / activeLessons().length * 100)} %</span><div><i style="width:${percent(done / activeLessons().length * 100)}%"></i></div></div><button class="ma-primary" data-action="${next ? 'continue' : 'review'}">${done ? next ? 'Continuer mon voyage' : 'Revoir mes acquis' : 'Commencer l’aventure'} ${icon('arrow', 18)}</button><span class="ma-hero-footnote">3 unités jouables · à votre rythme</span></div><div class="ma-hero-art">${townArt()}<span class="ma-art-caption">ANTANANARIVO, MADAGASCAR</span></div></section><div class="ma-content-grid"><section class="ma-learning-path"><div class="ma-section-heading"><div><span class="ma-eyebrow">VOTRE ITINÉRAIRE</span><h2>Les premiers pas</h2></div><span class="ma-small-label">MONDE 01 / 20</span></div><div class="ma-unit-list">${CONTENT.units.filter(unit => unit.implemented).map(unit => {
+  return `<section class="ma-welcome"><div><span class="ma-eyebrow"><i></i> TONGA SOA · BIENVENUE</span><h1 tabindex="-1">Un nouveau monde.<br><em>Un mot à la fois.</em></h1><p>Apprenez le malgache. Rencontrez une île.<br>Et faites de chaque petit pas une aventure.</p></div><div class="ma-welcome-stamp">${icon('compass', 35)}<span>LE GOÛT<br>DE LA DÉCOUVERTE</span></div></section><section class="ma-world-hero"><div class="ma-hero-copy"><div class="ma-hero-kicker"><span>MONDE 01</span> LES HAUTES TERRES</div><h2>${e(first.name)}</h2><p>Les premiers mots ouvrent les premières portes.</p><div class="ma-hero-progress"><span>${done} / ${activeLessons().length} leçons explorées</span><span>${percent(done / activeLessons().length * 100)} %</span><div><i style="width:${percent(done / activeLessons().length * 100)}%"></i></div></div><button class="ma-primary" data-action="${next ? 'continue' : 'review'}">${done ? next ? 'Continuer mon voyage' : 'Revoir mes acquis' : 'Commencer l’aventure'} ${icon('arrow', 18)}</button><span class="ma-hero-footnote">3 unités jouables · à votre rythme</span></div><div class="ma-hero-art">${townArt()}<div class="ma-hero-companions" aria-label="Lova et Mia, vos compagnons de voyage">${characterArt('lova', 'happy', 114)}${characterArt('mia', 'happy', 114)}</div><span class="ma-art-caption">ANTANANARIVO, MADAGASCAR</span></div></section><div class="ma-content-grid"><section class="ma-learning-path"><div class="ma-section-heading"><div><span class="ma-eyebrow">VOTRE ITINÉRAIRE</span><h2>Les premiers pas</h2></div><span class="ma-small-label">MONDE 01 / 20</span></div><div class="ma-unit-list">${CONTENT.units.filter(unit => unit.implemented).map(unit => {
     const lessons = unit.lessonIds.map(lessonById).filter((lesson): lesson is Lesson => !!lesson), isDone = unitComplete(unit.id), available = lessons.some(lesson => lessonAvailable(lesson, progress, CONTENT));
     const current = next?.unitId === unit.id;
     return `<article class="ma-unit ${current ? 'current' : ''} ${!available ? 'locked' : ''}"><div class="ma-unit-marker ${isDone ? 'complete' : current ? 'current' : ''}">${isDone ? icon('check', 20) : String(unit.number).padStart(2, '0')}</div><div class="ma-unit-content"><div class="ma-unit-title-row"><span class="ma-unit-label">UNITÉ ${String(unit.number).padStart(2, '0')}${current ? ' <b>VOUS ÊTES ICI</b>' : ''}</span><span class="ma-unit-status">${isDone ? 'Terminée' : available ? `${lessons.filter(lesson => completed(lesson.id)).length}/${lessons.length} leçons` : icon('lock', 14)}</span></div><h3>${e(unit.title)}</h3><p>${e(unit.description)}</p><div class="ma-lesson-steps">${lessons.map((lesson, i) => {
       const open = lessonAvailable(lesson, progress, CONTENT), finished = completed(lesson.id);
-      return `<button class="ma-lesson-step ${finished ? 'done' : open ? 'available' : 'locked'}" data-lesson="${e(lesson.id)}" ${open ? '' : 'disabled'} aria-label="${e(lesson.title)}${finished ? ', terminée' : !open ? ', verrouillée' : ''}"><span>${finished ? icon('check', 15) : lesson.kind === 'checkpoint' ? icon('star', 15) : lesson.kind === 'story' ? icon('book', 15) : `${i + 1}`}</span><div><strong>${e(lesson.title)}</strong><small>${lesson.kind === 'checkpoint' ? 'Bilan de l’unité' : lesson.kind === 'story' ? 'Rencontre & pratique' : `${lesson.estimatedMinutes} min · découverte`}</small></div>${open ? '<span class="ma-step-arrow">↗</span>' : icon('lock', 13)}</button>`;
+      return `<button class="ma-lesson-step ${finished ? 'done' : open ? 'available' : 'locked'}" data-lesson="${e(lesson.id)}" ${open ? '' : 'disabled'} aria-label="${e(lesson.title)}${finished ? ', terminée' : !open ? ', verrouillée' : ''}"><span>${finished ? icon('check', 15) : lesson.kind === 'checkpoint' ? icon('star', 15) : lesson.kind === 'story' ? icon('book', 15) : `${i + 1}`}</span><div><strong>${e(lesson.title)}</strong><small>${lesson.kind === 'checkpoint' ? 'Quiz final · 12 questions' : lesson.kind === 'story' ? 'Dialogue & mise en pratique' : `${lesson.estimatedMinutes} min · dialogue & jeu`}</small></div>${open ? '<span class="ma-step-arrow">↗</span>' : icon('lock', 13)}</button>`;
     }).join('')}</div></div></article>`;
-  }).join('')}</div><details class="ma-future-units"><summary>La suite du premier monde <span>9 unités prévues ${icon('arrow', 16)}</span></summary><p>La découverte s’arrête après l’unité 3 dans cette édition. Voici la suite du programme, encore en préparation.</p>${CONTENT.units.filter(unit => !unit.implemented).map(unit => `<div><span>${String(unit.number).padStart(2, '0')}</span><strong>${e(unit.title)}</strong>${icon('lock', 14)}</div>`).join('')}</details></section><aside class="ma-path-aside"><section class="ma-daily-card"><div class="ma-card-title">${icon('compass', 20)}<h3>Le petit pas du jour</h3></div><p>Quelques minutes pour aller un peu plus loin.</p>${dailyGoal()}<div class="ma-daily-caption"><span>Objectif personnel</span><strong>${progress.settings.dailyGoal} exercices</strong></div></section><section class="ma-discovery-card"><span class="ma-eyebrow">LE MOT DU VOYAGE</span><span class="ma-featured-word" lang="mg">Salama</span><p>Bonjour · Salut</p><span class="ma-word-rule"></span><p class="ma-discovery-note">Une salutation simple pour commencer une rencontre.</p><button data-view="vocabulary">Ouvrir mon lexique ${icon('arrow', 16)}</button></section><section class="ma-honesty-note">${icon('source', 18)}<div><strong>Des mots, des sources.</strong><p>Références consultables pour chaque leçon. Enregistrements natifs et relecture malgachophone à compléter.</p><button data-view="sources">Voir les références ↗</button></div></section></aside></div><div class="ma-bottom-note">${icon('leaf', 18)}<span>Pas de course à la perfection. Juste le plaisir de progresser.</span></div>`;
+  }).join('')}</div><details class="ma-future-units"><summary>La suite du premier monde <span>9 unités prévues ${icon('arrow', 16)}</span></summary><p>La découverte s’arrête après l’unité 3 dans cette édition. Voici la suite du programme, encore en préparation.</p>${CONTENT.units.filter(unit => !unit.implemented).map(unit => `<div><span>${String(unit.number).padStart(2, '0')}</span><strong>${e(unit.title)}</strong>${icon('lock', 14)}</div>`).join('')}</details></section><aside class="ma-path-aside"><section class="ma-daily-card"><div class="ma-card-title">${icon('compass', 20)}<h3>Le petit pas du jour</h3></div><p>Quelques minutes pour aller un peu plus loin.</p>${dailyGoal()}<div class="ma-daily-caption"><span>Objectif personnel</span><strong>${progress.settings.dailyGoal} exercices</strong></div></section><section class="ma-discovery-card"><span class="ma-eyebrow">LE MOT DU VOYAGE</span><span class="ma-featured-word" lang="mg">Salama</span><p>Bonjour · Salut</p><span class="ma-word-rule"></span><p class="ma-discovery-note">Une salutation simple pour commencer une rencontre.</p><button data-view="vocabulary">Ouvrir mon lexique ${icon('arrow', 16)}</button></section></aside></div><div class="ma-bottom-note">${icon('leaf', 18)}<span>Pas de course à la perfection. Juste le plaisir de progresser.</span></div>`;
 }
 function dailyGoal(): string {
   const today = new Date().toLocaleDateString('en-CA'), count = progress.history.filter(event => new Date(event.at).toLocaleDateString('en-CA') === today).length;
   return `<div class="ma-daily-ring" style="--ma-progress:${percent(count / progress.settings.dailyGoal * 100)}%"><div><strong>${Math.min(count, progress.settings.dailyGoal)}<small> / ${progress.settings.dailyGoal}</small></strong><span>exercices aujourd’hui</span></div></div>`;
 }
 
-function worldMap(): string {
-  const project = (world: World): [number, number] => [((world.coordinates[1] - 43) / 7) * 230 + 70, ((world.coordinates[0] + 12) / 14) * 350 + 29];
-  return `<div class="ma-map-panel"><span class="ma-map-ocean">OCÉAN INDIEN</span><svg viewBox="0 0 420 440" role="img" aria-label="Carte indicative des 20 destinations de Madagascar"><defs><pattern id="ma-map-grid" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M28 0H0v28" fill="none" stroke="#dfe6de" stroke-width=".6"/></pattern></defs><rect width="420" height="440" fill="url(#ma-map-grid)"/><path d="${ISLAND_PATH}" fill="#cbd7b9" stroke="#a7b794" stroke-width="1.5"/><path d="M150 340q18-90 48-123t48-100" stroke="#b1c09c" stroke-width="25" fill="none" opacity=".45"/><path d="${CONTENT.worlds.map((world, i) => { const [x, y] = project(world); return `${i ? 'L' : 'M'}${x},${y}`; }).join(' ')}" fill="none" stroke="#929c82" stroke-width="1.2" stroke-dasharray="3 5"/>${CONTENT.worlds.map(world => { const [x, y] = project(world); return `<g><circle cx="${x}" cy="${y}" r="${world.number === 1 ? 9 : 5}" fill="${world.number === 1 ? '#bb603e' : '#f9f7ed'}" stroke="${world.number === 1 ? '#f9f7ed' : '#607361'}" stroke-width="2"/><title>${world.number}. ${e(world.name)}</title></g>`; }).join('')}<text x="54" y="410" fill="#74877d" font-family="monospace" font-size="8" letter-spacing="2">SITUATION INDICATIVE · NON À L’ÉCHELLE</text><path d="M361 58V29m-5 8 5-8 5 8" stroke="#647d68" fill="none"/><text x="361" y="21" text-anchor="middle" font-size="9" fill="#647d68">N</text></svg><div class="ma-map-legend"><span><i></i> Monde ouvert</span><span><i></i> Étape à venir</span></div></div>`;
-}
+
 function worldsPage(): string {
-  return `${pageHeading('LE GRAND VOYAGE', 'Une île, vingt horizons.', 'Des Hautes Terres aux côtes de Madagascar : un programme progressif, une rencontre après l’autre.')}<div class="ma-worlds-layout">${worldMap()}<div><div class="ma-info-banner">${icon('compass')}<p><strong>Le voyage prend forme.</strong> Antananarivo propose 3 unités jouables. Les 19 autres mondes présentent leur programme prévisionnel.</p></div><div class="ma-destination-list">${CONTENT.worlds.map(world => `<button class="ma-destination ${world.implemented ? 'open' : ''}" data-world="${e(world.id)}"><span class="ma-destination-number">${String(world.number).padStart(2, '0')}</span><span><strong>${e(world.name)}</strong><small>${e(world.subtitle)}</small></span>${world.implemented ? '<span class="ma-open-tag">EXPLORER ↗</span>' : icon('lock', 16)}</button>`).join('')}</div></div></div>`;
+  return `${pageHeading('LE GRAND VOYAGE', 'Une île, vingt horizons.', 'Des Hautes Terres aux côtes de Madagascar : un programme progressif, une rencontre après l’autre.')}<div class="ma-worlds-layout">${renderWorldMap(CONTENT.worlds)}<div><div class="ma-info-banner">${icon('compass')}<p><strong>Le voyage prend forme.</strong> Antananarivo propose 3 unités jouables. Les 19 autres mondes présentent leur programme prévisionnel.</p></div><div class="ma-destination-list">${CONTENT.worlds.map(world => `<button class="ma-destination ${world.implemented ? 'open' : ''}" data-world="${e(world.id)}"><span class="ma-destination-number">${String(world.number).padStart(2, '0')}</span><span><strong>${e(world.name)}</strong><small>${e(world.subtitle)}</small></span>${world.implemented ? '<span class="ma-open-tag">EXPLORER ↗</span>' : icon('lock', 16)}</button>`).join('')}</div></div></div>`;
 }
 function reviewsPage(): string {
   const due = dueConcepts(progress), known = CONTENT.concepts.filter(concept => progress.concepts[concept.id]?.introduced), weakest = [...known].sort((a, b) => progress.concepts[a.id].mastery - progress.concepts[b.id].mastery).slice(0, 8);
@@ -100,18 +97,18 @@ function reviewsPage(): string {
 const dateLabel = (value: string | null): string => value ? new Date(value).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : 'après la première pratique';
 function statusLabel(status: string): string { return ({ unseen: 'À découvrir', learning: 'En découverte', reviewing: 'À consolider', mastered: 'Maîtrisé', due: 'À revoir' })[status] ?? status; }
 function vocabularyPage(): string {
-  return `${pageHeading('VOTRE COLLECTION DE RENCONTRES', 'Des mots qui restent.', 'Un petit carnet pour retrouver les expressions des trois premières unités et suivre celles déjà découvertes.')}<div class="ma-lexicon-tools"><label for="ma-search">${icon('book')}<input id="ma-search" type="search" placeholder="Chercher un mot, une traduction…" value="${e(search)}"></label><span>${CONTENT.vocabulary.length} EXPRESSIONS DOCUMENTÉES</span></div><div id="ma-lexicon-results">${vocabularyResults()}</div><div class="ma-info-banner">${icon('sound')}<p><strong>La voix viendra avec les bonnes sources.</strong> Aucun enregistrement natif vérifié n’est encore intégré. Le lexique reste écrit ; aucune maîtrise orale n’est attribuée.</p></div>`;
+  return `${pageHeading('VOTRE COLLECTION DE RENCONTRES', 'Des mots qui restent.', 'Un petit carnet pour retrouver les expressions des trois premières unités et suivre celles déjà découvertes.')}<div class="ma-lexicon-tools"><label for="ma-search">${icon('book')}<input id="ma-search" type="search" placeholder="Chercher un mot, une traduction…" value="${e(search)}"></label><span>${CONTENT.vocabulary.length} EXPRESSIONS DOCUMENTÉES</span></div><div id="ma-lexicon-results">${vocabularyResults()}</div>`;
 }
 function vocabularyResults(): string {
   const words = CONTENT.vocabulary.filter(word => `${word.malagasy} ${word.french} ${word.note}`.toLocaleLowerCase('fr').includes(search.toLocaleLowerCase('fr')));
-  return words.length ? `<div class="ma-lexicon-grid">${words.map(word => { const known = progress.concepts[word.conceptId]?.introduced; return `<article class="ma-word-card"><div><span class="ma-small-label">UNITÉ ${CONTENT.units.find(unit => unit.id === word.unitId)?.number ?? '—'}</span><span class="ma-word-state ${known ? 'known' : ''}">${known ? 'Découvert' : 'À découvrir'}</span></div><h2 lang="mg">${e(word.malagasy)}</h2><p>${e(word.french)}</p><small>${e(word.note)}</small><button class="ma-text-link" data-vocab-source="${e(word.id)}">Références ↗</button></article>`; }).join('')}</div>` : '<p class="ma-empty-state">Aucune expression ne correspond à votre recherche.</p>';
+  return words.length ? `<div class="ma-lexicon-grid">${words.map(word => { const known = progress.concepts[word.conceptId]?.introduced; return `<article class="ma-word-card"><div><span class="ma-small-label">UNITÉ ${CONTENT.units.find(unit => unit.id === word.unitId)?.number ?? '—'}</span><span class="ma-word-state ${known ? 'known' : ''}">${known ? 'Découvert' : 'À découvrir'}</span></div><h2 lang="mg">${e(word.malagasy)}</h2><p>${e(word.french)}</p><small>${e(word.note)}</small></article>`; }).join('')}</div>` : '<p class="ma-empty-state">Aucune expression ne correspond à votre recherche.</p>';
 }
 function statsPage(): string {
   const successful = progress.history.filter(event => event.correct).length, completedUnits = CONTENT.units.filter(unit => unitComplete(unit.id)).length;
   return `${pageHeading('CHAQUE PAS COMPTE', 'Votre carnet de progrès.', 'Une leçon terminée est une étape. Une notion retenue est un acquis qui se construit avec le temps.')}<div class="ma-metric-grid"><div><span>EXPÉRIENCE</span><strong>${progress.xp}<small> XP</small></strong><small>Niveau ${playerLevel(progress.xp)}</small></div><div><span>LEÇONS TERMINÉES</span><strong>${progress.completedLessons.length}<small> / ${activeLessons().length}</small></strong><small>${completedUnits} / 3 unités validées</small></div><div><span>MAÎTRISE MOYENNE</span><strong>${averageMastery()}<small> %</small></strong><small>sur ${knownConcepts()} notions découvertes</small></div></div><div class="ma-two-columns"><section class="ma-panel"><div class="ma-card-title">${icon('stats')}<h2>Votre pratique en chiffres</h2></div><dl class="ma-stats-list"><div><dt>Réponses données</dt><dd>${progress.history.length}</dd></div><div><dt>Réussites</dt><dd>${successful}</dd></div><div><dt>Précision de l’historique</dt><dd>${progress.history.length ? percent(successful / progress.history.length * 100) : 0} %</dd></div><div><dt>Jours d’activité</dt><dd>${progress.activityDates.length}</dd></div><div><dt>Série en cours</dt><dd>${streakDays(progress)} jours</dd></div><div><dt>Notions maîtrisées</dt><dd>${masteredConcepts()}</dd></div></dl><p class="ma-page-footnote">Historique limité aux dernières réponses conservées. Aucun niveau de langue officiel n’est déduit de ces statistiques.</p></section><section class="ma-panel"><div class="ma-card-title">${icon('star')}<h2>Les petites victoires</h2></div>${[['first-lesson', 'Le premier pas', 'Terminer votre première leçon.'], ['three-lessons', 'Le goût du voyage', 'Terminer trois leçons.'], ['first-unit', 'Première escale', 'Réussir un premier bilan d’unité.']].map(([id, name, description]) => `<div class="ma-achievement ${progress.achievements.includes(id) ? 'earned' : ''}"><span>${icon(progress.achievements.includes(id) ? 'star' : 'lock', 22)}</span><div><h3>${name}</h3><p>${description}</p></div>${progress.achievements.includes(id) ? icon('check', 18) : ''}</div>`).join('')}</section></div>`;
 }
 function sourcesPage(): string {
-  return `${pageHeading('APPRENDRE AVEC CONFIANCE', 'Des mots, des sources.', 'Le contenu linguistique est accompagné de ses références. Les exercices et illustrations ont été créés pour cette application.')}<div class="ma-source-summary"><span>${icon('source', 28)}</span><div><h2>Une base documentée, une validation à poursuivre.</h2><p>Les références ci-dessous étayent les premières unités en malgache standard. Une relecture par une personne malgachophone reste nécessaire avant une diffusion pédagogique large. Le programme des mondes futurs est prévisionnel.</p></div></div><div class="ma-section-heading"><h2>Références effectivement consultées</h2><span class="ma-small-label">REGISTRE DES SOURCES</span></div><div class="ma-source-list">${CONTENT.sources.filter(source => source.consulted).map(source => `<article id="source-${e(source.id)}"><div><span class="ma-small-label">${e(source.category.toUpperCase())}${source.date ? ` · ${e(source.date)}` : ''}</span><h3><a href="${e(source.url)}" target="_blank" rel="noopener noreferrer">${e(source.title)} ↗</a></h3><span class="ma-source-author">${e(source.author)}</span><p>${e(source.supports)}</p><small>${e(source.license)}</small></div></article>`).join('')}</div>${CONTENT.sources.some(source => !source.consulted) ? `<div class="ma-section-heading"><h2>Pour aller plus loin</h2></div><p>Ces références sont proposées en complément et n’ont pas servi à valider les exercices de cette édition.</p>${CONTENT.sources.filter(source => !source.consulted).map(source => `<p><a href="${e(source.url)}" target="_blank" rel="noopener noreferrer">${e(source.title)} ↗</a></p>`).join('')}` : ''}<div class="ma-two-columns"><section class="ma-panel"><h2>Prononciation & audio</h2><p>Cette édition ne contient pas encore d’enregistrements malgaches vérifiés. La synthèse vocale du navigateur n’est pas utilisée. Les petits sons de réponse sont des effets d’interface créés localement.</p><p>Les exercices restent écrits et ne valident aucune compétence d’écoute ou de prononciation.</p></section><section class="ma-panel"><h2>Images & réutilisation</h2><p>Illustration d’Antananarivo, carte indicative et icônes : dessins vectoriels originaux créés pour Afterhours. Aucun média externe n’est chargé.</p><p>Les références sont citées pour étayer les connaissances. Cela n’implique aucune autorisation de recopier leurs cours ou leurs enregistrements.</p></section></div>`;
+  return `${pageHeading('APPRENDRE AVEC CONFIANCE', 'Des mots, des sources.', 'Le contenu linguistique est accompagné de ses références. Les exercices et illustrations ont été créés pour cette application.')}<div class="ma-source-summary"><span>${icon('source', 28)}</span><div><h2>Une base documentée, une validation à poursuivre.</h2><p>Les références ci-dessous étayent les premières unités en malgache standard. Une relecture par une personne malgachophone reste nécessaire avant une diffusion pédagogique large. Le programme des mondes futurs est prévisionnel.</p></div></div><div class="ma-section-heading"><h2>Références effectivement consultées</h2><span class="ma-small-label">REGISTRE DES SOURCES</span></div><div class="ma-source-list">${CONTENT.sources.filter(source => source.consulted).map(source => `<article id="source-${e(source.id)}"><div><span class="ma-small-label">${e(source.category.toUpperCase())}${source.date ? ` · ${e(source.date)}` : ''}</span><h3><a href="${e(source.url)}" target="_blank" rel="noopener noreferrer">${e(source.title)} ↗</a></h3><span class="ma-source-author">${e(source.author)}</span><p>${e(source.supports)}</p><small>${e(source.license)}</small></div></article>`).join('')}</div>${CONTENT.sources.some(source => !source.consulted) ? `<div class="ma-section-heading"><h2>Pour aller plus loin</h2></div><p>Ces références sont proposées en complément et n’ont pas servi à valider les exercices de cette édition.</p>${CONTENT.sources.filter(source => !source.consulted).map(source => `<p><a href="${e(source.url)}" target="_blank" rel="noopener noreferrer">${e(source.title)} ↗</a></p>`).join('')}` : ''}<div class="ma-two-columns"><section class="ma-panel"><h2>Prononciation & audio</h2><p>Cette édition ne contient pas encore d’enregistrements malgaches vérifiés. La synthèse vocale du navigateur n’est pas utilisée. Les petits sons de réponse sont des effets d’interface créés localement.</p><p>Les exercices restent écrits et ne valident aucune compétence d’écoute ou de prononciation.</p></section><section class="ma-panel"><h2>Images & réutilisation</h2><p>Personnages, illustration d’Antananarivo et icônes : dessins vectoriels originaux créés pour Afterhours. Le fond géographique de la carte provient de Natural Earth, cité ci-dessus. Aucun média distant n’est chargé à l’utilisation.</p><p>Les références sont citées pour étayer les connaissances. Cela n’implique aucune autorisation de recopier leurs cours ou leurs enregistrements.</p></section></div>`;
 }
 function recoveryNotice(): string {
   return loadRecovery() ? '<section class="ma-panel"><h2>Une copie à examiner</h2><p>Une ancienne sauvegarde illisible a été conservée séparément avant la création du nouveau carnet. Vous pouvez la télécharger pour la faire examiner ; elle ne peut pas être importée en l’état.</p><button class="ma-secondary" data-action="export-recovery">Télécharger la copie conservée</button></section>' : '';
@@ -121,39 +118,26 @@ function backupPage(): string {
 }
 
 function sessionPage(): string {
-  const current = session!;
-  if (current.stage === 'notes') {
-    return `<div class="ma-session"><button class="ma-text-link ma-exit" data-action="exit-lesson">← Mon parcours</button><div class="ma-lesson-heading"><span class="ma-eyebrow">${current.lesson.kind === 'checkpoint' ? 'LE BILAN DE L’ÉTAPE' : current.lesson.kind === 'story' ? 'UNE NOUVELLE RENCONTRE' : 'DANS VOTRE CARNET'}</span><h1 tabindex="-1">${e(current.lesson.title)}</h1><p>${e(current.lesson.description)}</p><span class="ma-small-label">${current.lesson.estimatedMinutes} MIN ENVIRON · ${current.exercises.length} EXERCICES</span></div><div class="ma-lesson-notes">${current.lesson.notes.map(note => `<article><span>${icon('leaf', 21)}</span><div><h2>${e(note.title)}</h2><p>${e(note.body)}</p>${note.example ? `<div class="ma-note-example"><strong lang="mg">${e(note.example)}</strong>${note.translation ? `<span>${e(note.translation)}</span>` : ''}</div>` : ''}</div></article>`).join('')}</div><div class="ma-session-start"><p>${current.lesson.kind === 'checkpoint' ? 'Le bilan se valide avec au moins 80 % de bonnes réponses.' : 'La leçon se valide avec au moins 60 % de bonnes réponses.'} Les erreurs aident à préparer vos révisions.</p><button class="ma-primary" data-action="begin-exercises">Passer à la pratique ${icon('arrow', 19)}</button></div>${lessonSources(current.lesson)}</div>`;
-  }
-  if (current.stage === 'done') return completionPage();
-  const exercise = current.exercises[current.index];
-  return `<div class="ma-session"><div class="ma-session-toolbar"><button class="ma-icon-button" data-action="exit-lesson" aria-label="Quitter la leçon">${icon('close')}</button><div class="ma-session-progress" aria-label="Progression de la session"><i style="width:${percent(current.index / current.exercises.length * 100)}%"></i></div><span>${current.index + 1} / ${current.exercises.length}</span></div><span class="ma-session-label">${e(current.lesson.title)}</span><form id="ma-exercise-form" aria-labelledby="ma-question"><div class="ma-task">${renderTask(exercise, current.draft, current.answered)}</div>${current.answered ? `<section class="ma-feedback ${current.wasCorrect ? 'correct' : 'incorrect'}" aria-live="polite"><span class="ma-feedback-symbol">${icon(current.wasCorrect ? 'check' : 'book', 25)}</span><div><h3>${current.wasCorrect ? 'Tsara ! Bien joué.' : 'Une occasion de retenir.'}</h3>${!current.wasCorrect ? `<p><strong>Réponse attendue :</strong> ${e(correctAnswerLabel(exercise))}</p>` : ''}<p>${e(exercise.explanation)}</p><button class="ma-text-link" type="button" data-exercise-source="${e(exercise.id)}">Consulter les références ↗</button></div></section>` : ''}<div class="ma-exercise-footer"><span>${current.answered ? current.wasCorrect ? 'Un petit pas de plus.' : 'On apprend aussi en se trompant.' : 'Prenez votre temps.'}</span>${current.answered ? `<button class="ma-primary" type="button" data-action="next-exercise">${current.index === current.exercises.length - 1 ? 'Voir mon bilan' : 'Continuer'} ${icon('arrow', 18)}</button>` : `<button id="ma-submit" class="ma-primary" type="submit" ${answerReady() ? '' : 'disabled'}>Vérifier ma réponse ${icon('check', 18)}</button>`}</div></form><div class="ma-session-audio-note">${exercise.type === 'listening' ? 'Écoute sur enregistrement vérifié · aucune évaluation de prononciation' : 'Exercice écrit · aucun score d’écoute ou de prononciation'}</div></div>`;
+  return renderLearningSession(session!, progress, CONTENT, nextLesson());
 }
-function lessonSources(lesson: Lesson): string {
-  return `<div class="ma-lesson-sources"><span>REPÈRES & RÉFÉRENCES</span>${lesson.sourceIds.map(id => { const source = CONTENT.sources.find(item => item.id === id); return source ? `<a href="${e(source.url)}" target="_blank" rel="noopener noreferrer">${e(source.title)} ↗</a>` : ''; }).join('')}</div>`;
-}
-function correctAnswerLabel(exercise: Exercise): string {
-  return exercise.type === 'match' ? (exercise.pairs ?? []).map(pair => `${pair.left} → ${pair.right}`).join(' · ') : exercise.answers[0] ?? '';
-}
-function completionPage(): string {
-  const current = session!, passed = current.review || current.correct / current.exercises.length >= (current.lesson.kind === 'checkpoint' ? .8 : .6), accuracy = percent(current.correct / current.exercises.length * 100), next = nextLesson();
-  return `<div class="ma-session ma-completion"><span class="ma-completion-icon ${passed ? '' : 'retry'}">${icon(passed ? 'leaf' : 'review', 58)}</span><span class="ma-eyebrow">${current.review ? 'LE RENDEZ-VOUS EST PRIS' : passed ? 'UNE ÉTAPE DE PLUS' : 'ÇA SE CONSTRUIT, PETIT À PETIT'}</span><h1 tabindex="-1">${current.review ? 'Les acquis se cultivent.' : passed ? current.lesson.kind === 'checkpoint' ? 'Une belle escale !' : 'Le voyage continue.' : 'Reprenons le chemin.'}</h1><p>${current.review ? 'Vos réponses ont mis à jour les révisions à venir.' : passed ? `${current.lesson.title} : cette étape est validée.` : `Encore un peu de pratique pour atteindre ${current.lesson.kind === 'checkpoint' ? '80' : '60'} % de bonnes réponses.`}</p><div class="ma-completion-stats"><div><strong>${accuracy} %</strong><span>DE RÉUSSITE</span></div><div><strong>+${progress.xp - current.xpBefore}</strong><span>XP GAGNÉS</span></div><div><strong>${current.correct}/${current.exercises.length}</strong><span>BONNES RÉPONSES</span></div></div><p class="ma-completion-note">${passed ? 'Le carnet est sauvegardé automatiquement. Retrouver une notion à plusieurs jours d’intervalle aide à la retenir.' : 'Vos acquis sont conservés. Relisez les repères et réessayez : seules les premières réussites d’un exercice rapportent des XP.'}</p><div class="ma-completion-actions">${!passed ? `<button class="ma-primary" data-lesson="${e(current.lesson.id)}">Réessayer cette étape ${icon('review', 18)}</button>` : !current.review && next ? `<button class="ma-primary" data-action="continue">La prochaine rencontre ${icon('arrow', 18)}</button>` : ''}<button class="${passed && (current.review || !next) ? 'ma-primary' : 'ma-secondary'}" data-view="${current.review ? 'reviews' : 'path'}">${current.review ? 'Retour aux révisions' : 'Retrouver mon parcours'} ${icon('arrow', 18)}</button></div>${!next && !current.review && passed ? '<div class="ma-info-banner"><p>Vous avez terminé les 3 unités de cette édition. Les unités 4 à 12 et les autres mondes restent en préparation.</p></div>' : ''}</div>`;
-}
+
 function render(): void {
-  app.innerHTML = `<div class="ma-app">${sidebar()}<div class="ma-workspace">${topbar()}${storageWarning ? `<div class="ma-storage-warning" role="status">${e(storageWarning)} <button data-view="backup">Ma sauvegarde</button></div>` : ''}<main class="ma-main" id="ma-main">${session ? sessionPage() : ({ path: pathPage, worlds: worldsPage, reviews: reviewsPage, vocabulary: vocabularyPage, stats: statsPage, sources: sourcesPage, backup: backupPage })[view]()}</main><footer class="ma-footer"><span>MALAGASY ADVENTURE <i>par Afterhours</i></span><span>APPRENDRE. RENCONTRER. EXPLORER.</span></footer></div><dialog class="ma-dialog" id="ma-dialog" aria-labelledby="ma-dialog-title"></dialog><div class="ma-toast" id="ma-toast" role="status" aria-live="polite"></div></div>`;
+  app.innerHTML = `<div class="ma-app ${session ? 'ma-in-session' : ''}">${sidebar()}<div class="ma-workspace">${topbar()}${storageWarning ? `<div class="ma-storage-warning" role="status">${e(storageWarning)} <button data-view="backup">Ma sauvegarde</button></div>` : ''}<main class="ma-main" id="ma-main">${session ? sessionPage() : ({ path: pathPage, worlds: worldsPage, reviews: reviewsPage, vocabulary: vocabularyPage, stats: statsPage, sources: sourcesPage, backup: backupPage })[view]()}</main><footer class="ma-footer"><span>MALAGASY ADVENTURE <i>par Afterhours</i></span><span>APPRENDRE. RENCONTRER. EXPLORER.</span></footer></div><dialog class="ma-dialog" id="ma-dialog" aria-labelledby="ma-dialog-title"></dialog><div class="ma-toast" id="ma-toast" role="status" aria-live="polite"></div></div>`;
 }
 
 function startLesson(id: string): void {
   const lesson = lessonById(id);
   if (!lesson || !lessonAvailable(lesson, progress, CONTENT)) return;
   audio.stop();
-  // The authored repères introduce all upcoming notions before scored practice starts.
-  progress = introduceLesson(progress, lesson, CONTENT); persist();
-  const exercises = lesson.kind === 'checkpoint'
-    ? lesson.exerciseIds.map(exerciseId => CONTENT.exercises.find(exercise => exercise.id === exerciseId)).filter((exercise): exercise is Exercise => !!exercise && exercise.concepts.every(conceptId => progress.concepts[conceptId]?.introduced))
-    : selectMixedExercises(CONTENT, progress, lesson, Math.max(6, lesson.exerciseIds.length));
+  // Prepare the bank without exposing unseen dialogue words to the review centre.
+  const prospective = introduceLesson(progress, lesson, CONTENT);
+  const authored = lesson.exerciseIds.map(exerciseId => CONTENT.exercises.find(exercise => exercise.id === exerciseId)).filter((exercise): exercise is Exercise => !!exercise && exercise.concepts.every(conceptId => prospective.concepts[conceptId]?.introduced));
+  // Keep the conversational arc intact; add two encountered recalls after it.
+  const earlierIds = new Set(CONTENT.lessons.filter(item => progress.completedLessons.includes(item.id) && item.id !== lesson.id).flatMap(item => item.exerciseIds));
+  const recalls = selectMixedExercises(CONTENT, progress, null, CONTENT.exercises.length).filter(exercise => earlierIds.has(exercise.id) && !lesson.exerciseIds.includes(exercise.id)).slice(0, 2);
+  const exercises = lesson.kind === 'checkpoint' ? authored : [...authored, ...recalls];
   if (!exercises.length) { toast('Cette leçon n’a pas encore d’exercices disponibles.'); return; }
-  session = { lesson, exercises, index: 0, correct: 0, draft: emptyDraft(), answered: false, wasCorrect: false, stage: 'notes', review: false, xpBefore: progress.xp };
+  session = { lesson, exercises, index: 0, correct: 0, draft: emptyDraft(), answered: false, wasCorrect: false, stage: 'notes', review: false, xpBefore: progress.xp, sceneIndex: 0, revealedTurns: 1, combo: 0, maxCombo: 0, lastReward: 0, results: [] };
   render(); window.scrollTo(0, 0); app.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
 }
 function startReview(): void {
@@ -161,7 +145,7 @@ function startReview(): void {
   const exercises = selectMixedExercises(CONTENT, progress, null, 8);
   if (!exercises.length) { navigate('path'); return; }
   const lesson: Lesson = { id: 'review-session', worldId: '', unitId: '', title: 'Le rendez-vous des révisions', description: 'Retrouver les notions déjà découvertes.', kind: 'checkpoint', objectives: [], introduces: [], reviews: [], prerequisites: [], exerciseIds: exercises.map(exercise => exercise.id), notes: [], estimatedMinutes: 5, sourceIds: [] };
-  session = { lesson, exercises, index: 0, correct: 0, draft: emptyDraft(), answered: false, wasCorrect: false, stage: 'exercise', review: true, xpBefore: progress.xp };
+  session = { lesson, exercises, index: 0, correct: 0, draft: emptyDraft(), answered: false, wasCorrect: false, stage: 'exercise', review: true, xpBefore: progress.xp, sceneIndex: 0, revealedTurns: 1, combo: 0, maxCombo: 0, lastReward: 0, results: [] };
   render(); window.scrollTo(0, 0); app.querySelector<HTMLElement>('#ma-question')?.focus();
 }
 function checkAnswer(): void {
@@ -170,9 +154,17 @@ function checkAnswer(): void {
   if (!answerReady()) return;
   session.wasCorrect = validateAnswer(exercise, answerValue(exercise, session.draft));
   session.answered = true; session.correct += Number(session.wasCorrect);
+  session.combo = session.wasCorrect ? session.combo + 1 : 0;
+  session.maxCombo = Math.max(session.maxCombo, session.combo);
+  session.results.push({ exerciseId: exercise.id, correct: session.wasCorrect });
+  const previousXp = progress.xp;
   progress = recordAnswer(progress, exercise, session.wasCorrect); persist();
-  feedbackSound(session.wasCorrect, progress.settings.muted);
-  render(); app.querySelector<HTMLElement>('[data-action="next-exercise"]')?.focus({ preventScroll: true });
+  session.lastReward = progress.xp - previousXp;
+  feedbackSound(session.wasCorrect, progress.settings.muted, session.combo);
+  render();
+  const continueButton = app.querySelector<HTMLElement>('[data-action="next-exercise"]');
+  continueButton?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+  continueButton?.focus({ preventScroll: true });
 }
 function advanceExercise(): void {
   if (!session?.answered) return;
@@ -182,6 +174,7 @@ function advanceExercise(): void {
   } else {
     if (!session.review) progress = completeLesson(progress, session.lesson, session.correct, session.exercises.length);
     persist(); session.stage = 'done';
+    if (sessionPassed(session)) completionSound(progress.settings.muted, !session.review && session.lesson.kind === 'checkpoint');
   }
   render(); window.scrollTo({ top: 0, behavior: 'instant' });
   const heading = app.querySelector<HTMLElement>('#ma-question, .ma-completion h1');
@@ -189,11 +182,20 @@ function advanceExercise(): void {
 }
 function updateTask(focusKey?: string): void {
   if (!session) return;
-  const exercise = session.exercises[session.index], task = app.querySelector('.ma-task');
-  if (task) task.innerHTML = renderTask(exercise, session.draft, session.answered);
+  const exercise = session.exercises[session.index], controls = app.querySelector('.ma-answer-controls');
+  if (controls) controls.innerHTML = renderAnswerControls(exercise, session.draft, session.answered);
   const submit = app.querySelector<HTMLButtonElement>('#ma-submit');
   if (submit) submit.disabled = !answerReady();
   if (focusKey) [...app.querySelectorAll<HTMLElement>('[data-focus]')].find(element => element.dataset.focus === focusKey)?.focus({ preventScroll: true });
+}
+function advanceDialogue(): void {
+  if (!session || session.stage !== 'notes') return;
+  const scene = session.lesson.scenes?.[session.sceneIndex];
+  if (!scene) return;
+  if (session.revealedTurns < scene.turns.length) session.revealedTurns++;
+  else if (session.sceneIndex + 1 < (session.lesson.scenes?.length ?? 0)) { session.sceneIndex++; session.revealedTurns = 1; }
+  render();
+  app.querySelector<HTMLElement>('.ma-dialogue-actions .ma-primary')?.focus({ preventScroll: true });
 }
 function answerReady(): boolean {
   if (!session) return false;
@@ -220,9 +222,7 @@ function worldDetails(id: string): void {
   const items = (title: string, values: string[]) => `<h3>${title}</h3><ul>${values.map(value => `<li>${e(value)}</li>`).join('')}</ul>`;
   showDialog(`${String(world.number).padStart(2, '0')} · ${world.name}`, `<p class="ma-dialog-intro">${e(world.subtitle)}</p><p>${e(world.description)}</p>${world.implemented ? '<span class="ma-open-tag">3 UNITÉS JOUABLES</span>' : '<span class="ma-planned-tag">DESTINATION EN PRÉPARATION · VERROUILLÉE</span>'}${items('Les mots à rencontrer', world.vocabulary)}${items('Les constructions à découvrir', world.grammar)}${items('Ce que vous apprendrez à faire', world.skills)}<h3>L’escale culturelle</h3><p>${e(world.culture)}</p><small>${world.estimatedHours} heures indicatives pour le programme complet de ce monde. ${world.implemented ? 'Cette édition couvre les trois premières unités.' : 'Ce programme est une hypothèse pédagogique à valider avant publication des leçons.'}</small>${world.implemented ? '<button class="ma-primary" data-view="path">Retrouver mon parcours ↗</button>' : ''}`);
 }
-function referencesDialog(title: string, sourceIds: string[]): void {
-  showDialog(title, `<p>Références utilisées pour cette entrée. Les exercices sont des créations originales fondées sur ces repères.</p>${sourceIds.map(id => { const source = CONTENT.sources.find(item => item.id === id); return source ? `<article class="ma-dialog-source"><h3><a href="${e(source.url)}" target="_blank" rel="noopener noreferrer">${e(source.title)} ↗</a></h3><p>${e(source.supports)}</p><small>${e(source.license)}</small></article>` : ''; }).join('')}<p class="ma-page-footnote">La relecture malgachophone reste à compléter.</p>`);
-}
+
 let toastTimeout = 0;
 function toast(message: string): void {
   const element = app.querySelector<HTMLElement>('#ma-toast')!;
@@ -266,14 +266,12 @@ app.addEventListener('change', event => {
   if (input.id === 'ma-daily-goal') { progress = { ...progress, settings: { ...progress.settings, dailyGoal: Number(input.value) }, updatedAt: new Date().toISOString() }; persist(); render(); toast('Votre objectif a été enregistré.'); }
 });
 app.addEventListener('click', event => {
-  const target = (event.target as HTMLElement).closest<HTMLElement>('button, a[data-view]');
+  const target = (event.target as HTMLElement).closest<HTMLElement>('button, a[data-view], [data-world]');
   if (!target || (target as HTMLButtonElement).disabled) return;
   const data = target.dataset;
   if (data.view) { navigate(data.view as View); return; }
   if (data.lesson) { startLesson(data.lesson); return; }
   if (data.world) { worldDetails(data.world); return; }
-  if (data.vocabSource) { const word = CONTENT.vocabulary.find(item => item.id === data.vocabSource); if (word) referencesDialog(word.malagasy, word.sourceIds); return; }
-  if (data.exerciseSource) { const exercise = CONTENT.exercises.find(item => item.id === data.exerciseSource); if (exercise) referencesDialog('Les repères de cet exercice', exercise.sourceIds); return; }
   if (session?.stage === 'exercise' && !session.answered) {
     if (data.choice !== undefined) { session.draft.choice = data.choice; updateTask(data.focus); return; }
     if (data.token !== undefined) { session.draft.ordered.push(Number(data.token)); updateTask(); app.querySelector<HTMLElement>('.ma-word-bank button:not(:disabled)')?.focus({ preventScroll: true }); return; }
@@ -282,13 +280,20 @@ app.addEventListener('click', event => {
     if (data.right !== undefined && session.draft.selectedLeft) { for (const left of Object.keys(session.draft.matches)) if (session.draft.matches[left] === data.right) delete session.draft.matches[left]; session.draft.matches[session.draft.selectedLeft] = data.right; session.draft.selectedLeft = ''; updateTask(); app.querySelector<HTMLElement>('[data-left]:not(.paired)')?.focus({ preventScroll: true }); return; }
   }
   switch (data.action) {
+    case 'advance-dialogue': advanceDialogue(); break;
     case 'play-audio': void playLanguageAudio(false); break;
     case 'replay-audio': void playLanguageAudio(true); break;
     case 'slow-audio': void playLanguageAudio(true, .75); break;
     case 'pause-audio': audio.pause(); break;
     case 'continue': { const next = nextLesson(); if (next) startLesson(next.id); else startReview(); break; }
     case 'review': startReview(); break;
-    case 'begin-exercises': if (session) { session.stage = 'exercise'; render(); window.scrollTo(0, 0); const question = app.querySelector<HTMLElement>('#ma-question'); question?.setAttribute('tabindex', '-1'); question?.focus({ preventScroll: true }); } break;
+    case 'begin-exercises': if (session) {
+      const scenes = session.lesson.scenes ?? [];
+      if (scenes.length && (session.sceneIndex !== scenes.length - 1 || session.revealedTurns < scenes[session.sceneIndex].turns.length)) break;
+      progress = introduceLesson(progress, session.lesson, CONTENT); persist();
+      session.stage = 'exercise'; render(); window.scrollTo(0, 0);
+      const question = app.querySelector<HTMLElement>('#ma-question'); question?.setAttribute('tabindex', '-1'); question?.focus({ preventScroll: true });
+    } break;
     case 'next-exercise': advanceExercise(); break;
     case 'exit-lesson': showDialog('Faire une pause ?', '<p>Vos réponses sont déjà sauvegardées. La leçon reste à valider : vous reprendrez ses exercices depuis le début.</p><div class="ma-dialog-actions"><button class="ma-primary" data-view="path">Retour au parcours</button><button class="ma-secondary" data-action="close-dialog">Poursuivre la leçon</button></div>'); break;
     case 'mute': progress = { ...progress, settings: { ...progress.settings, muted: !progress.settings.muted }, updatedAt: new Date().toISOString() }; audio.muted = progress.settings.muted; persist(); render(); break;
@@ -300,5 +305,9 @@ app.addEventListener('click', event => {
   }
 });
 window.addEventListener('hashchange', () => navigate(readView()));
+app.addEventListener('keydown', event => {
+  const marker = (event.target as Element).closest<SVGElement>('[data-world][role="button"]');
+  if (marker && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); worldDetails(marker.dataset.world ?? ''); }
+});
 window.addEventListener('pagehide', () => { audio.stop(); });
 render();

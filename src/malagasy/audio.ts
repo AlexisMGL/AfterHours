@@ -29,17 +29,61 @@ export class MalagasyAudio {
 }
 
 let context: AudioContext | undefined;
-/** UI feedback is a locally synthesized sound, not a Malagasy pronunciation. */
-export function feedbackSound(correct: boolean, muted: boolean): void {
-  if (muted) return;
+function feedbackContext(): AudioContext | undefined {
   try {
     context ??= new AudioContext();
-    void context.resume();
-    const oscillator = context.createOscillator(), gain = context.createGain();
-    oscillator.connect(gain); gain.connect(context.destination);
-    oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(correct ? 660 : 220, context.currentTime);
-    oscillator.frequency.exponentialRampToValueAtTime(correct ? 880 : 180, context.currentTime + .12);
-    gain.gain.setValueAtTime(.045, context.currentTime); gain.gain.exponentialRampToValueAtTime(.001, context.currentTime + .2);
-    oscillator.start(); oscillator.stop(context.currentTime + .22);
+    if (context.state === 'suspended') void context.resume().catch(() => undefined);
+    return context;
+  } catch { return undefined; }
+}
+
+/** A bell has its own attack and decaying partials, rather than a frequency glide. */
+function bell(audio: BaseAudioContext, frequency: number, when: number, length: number, strength: number): void {
+  const partials: [number, number, OscillatorType][] = [[1, 1, 'sine'], [2.01, .18, 'sine'], [1, .2, 'triangle']];
+  for (const [ratio, volume, type] of partials) {
+    const oscillator = audio.createOscillator(), gain = audio.createGain();
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(frequency * ratio, when);
+    gain.gain.setValueAtTime(0, when);
+    gain.gain.linearRampToValueAtTime(strength * volume, when + .006);
+    gain.gain.exponentialRampToValueAtTime(.0001, when + length);
+    oscillator.connect(gain); gain.connect(audio.destination);
+    oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
+    oscillator.start(when); oscillator.stop(when + length + .015);
+  }
+}
+
+/** Original UI motif: two crisp ascending bells; never used as language audio. */
+export function feedbackSound(correct: boolean, muted: boolean, combo = 1): void {
+  if (muted) return;
+  const audio = feedbackContext();
+  if (!audio) return;
+  try {
+    const start = audio.currentTime + .006;
+    if (correct) {
+      // F5 → C6: the second note arrives with a fresh, brighter bell attack.
+      const lift = Math.min(3, Math.max(0, combo - 1)) * .003;
+      bell(audio, 698.456, start, .22, .055 + lift);
+      bell(audio, 1046.502, start + .125, .34, .069 + lift);
+    } else {
+      // A quiet, rounded falling pair signals a correction without a harsh buzzer.
+      bell(audio, 349.228, start, .16, .029);
+      bell(audio, 293.665, start + .085, .22, .024);
+    }
   } catch { /* Audio restrictions never prevent answering an exercise. */ }
+}
+
+/** A distinct closing cadence makes the end of a lesson or whole unit audible. */
+export function completionSound(muted: boolean, unitComplete = false): void {
+  if (muted) return;
+  const audio = feedbackContext();
+  if (!audio) return;
+  try {
+    const notes = unitComplete ? [523.251, 659.255, 783.991, 1046.502, 1318.51] : [523.251, 659.255, 1046.502];
+    const step = unitComplete ? .115 : .12;
+    for (const [index, frequency] of notes.entries()) {
+      bell(audio, frequency, audio.currentTime + .008 + index * step,
+        index === notes.length - 1 ? .4 : .2, index === notes.length - 1 ? .074 : .043);
+    }
+  } catch { /* Completing a lesson must remain possible on devices without Web Audio. */ }
 }

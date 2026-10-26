@@ -1,4 +1,5 @@
 import type { Exercise } from './types';
+import { renderDialogue } from './dialogue-view';
 
 export const escapeHtml = (value: string | number): string => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
 const e = escapeHtml;
@@ -14,14 +15,14 @@ export const tokensFor = (exercise: Exercise): string[] => shuffled(exercise.tok
 
 type Renderer = (exercise: Exercise, draft: AnswerDraft, disabled: boolean) => string;
 const choiceRenderer: Renderer = (exercise, draft, disabled) => `<div class="ma-choices">${shuffled(exercise.choices ?? [], exercise.id).map((choice, i) => `<button type="button" class="ma-choice ${draft.choice === choice ? 'selected' : ''}" data-choice="${e(choice)}" data-focus="choice-${i}" aria-pressed="${draft.choice === choice}" ${disabled ? 'disabled' : ''}><span class="ma-choice-key">${i + 1}</span><span>${e(choice)}</span><span class="ma-choice-radio"></span></button>`).join('')}</div>`;
-const textRenderer: Renderer = (exercise, draft, disabled) => `<label class="ma-answer-label" for="ma-answer">Votre réponse</label><input id="ma-answer" class="ma-answer" value="${e(draft.text)}" placeholder="Écrivez ici…" autocomplete="off" autocapitalize="sentences" spellcheck="false" ${disabled ? 'disabled' : ''}><p class="ma-input-note">La casse et la ponctuation finale ne changent pas la réponse.</p>`;
+const textRenderer: Renderer = (exercise, draft, disabled) => `<label class="ma-answer-label" for="ma-answer">Votre réponse</label><input id="ma-answer" class="ma-answer" value="${e(draft.text)}" placeholder="Écrivez ici…" autocomplete="off" autocapitalize="sentences" spellcheck="false" ${disabled ? 'disabled' : ''}>`;
 const orderRenderer: Renderer = (exercise, draft, disabled) => {
   const tokens = tokensFor(exercise);
-  return `<p class="ma-input-note">Touchez les mots pour construire la phrase. Touchez un mot choisi pour le retirer.</p><div class="ma-word-answer" aria-label="Votre phrase">${draft.ordered.length ? draft.ordered.map((index, i) => `<button type="button" data-remove-token="${i}" data-focus="remove-${i}" ${disabled ? 'disabled' : ''}>${e(tokens[index])}<span aria-hidden="true"> ×</span></button>`).join('') : '<span>La phrase commence ici…</span>'}</div><div class="ma-word-bank">${tokens.map((token, i) => `<button type="button" data-token="${i}" data-focus="token-${i}" ${disabled || draft.ordered.includes(i) ? 'disabled' : ''}>${e(token)}</button>`).join('')}</div>`;
+  return `<div class="ma-word-answer" aria-label="Votre phrase">${draft.ordered.length ? draft.ordered.map((index, i) => `<button type="button" data-remove-token="${i}" data-focus="remove-${i}" ${disabled ? 'disabled' : ''}>${e(tokens[index])}<span aria-hidden="true"> ×</span></button>`).join('') : '<span>La phrase commence ici…</span>'}</div><div class="ma-word-bank">${tokens.map((token, i) => `<button type="button" data-token="${i}" data-focus="token-${i}" ${disabled || draft.ordered.includes(i) ? 'disabled' : ''}>${e(token)}</button>`).join('')}</div>`;
 };
 const matchRenderer: Renderer = (exercise, draft, disabled) => {
   const pairs = exercise.pairs ?? [], rights = shuffled(pairs.map(pair => pair.right), exercise.id);
-  return `<p class="ma-input-note">Choisissez une expression à gauche, puis sa traduction à droite. Vous pouvez modifier vos associations.</p><div class="ma-matching"><div>${pairs.map((pair, i) => `<button type="button" data-left="${e(pair.left)}" data-focus="left-${i}" class="${draft.selectedLeft === pair.left ? 'selected' : ''} ${draft.matches[pair.left] ? 'paired' : ''}" aria-pressed="${draft.selectedLeft === pair.left}" ${disabled ? 'disabled' : ''}><span>${e(pair.left)}</span>${draft.matches[pair.left] ? `<small>${e(draft.matches[pair.left])}</small>` : ''}</button>`).join('')}</div><div>${rights.map((right, i) => `<button type="button" data-right="${e(right)}" data-focus="right-${i}" class="${Object.values(draft.matches).includes(right) ? 'paired' : ''}" ${disabled || !draft.selectedLeft ? 'disabled' : ''}>${e(right)}</button>`).join('')}</div></div>`;
+  return `<div class="ma-matching"><div>${pairs.map((pair, i) => `<button type="button" data-left="${e(pair.left)}" data-focus="left-${i}" class="${draft.selectedLeft === pair.left ? 'selected' : ''} ${draft.matches[pair.left] ? 'paired' : ''}" aria-pressed="${draft.selectedLeft === pair.left}" ${disabled ? 'disabled' : ''}><span>${e(pair.left)}</span>${draft.matches[pair.left] ? `<small>${e(draft.matches[pair.left])}</small>` : ''}</button>`).join('')}</div><div>${rights.map((right, i) => `<button type="button" data-right="${e(right)}" data-focus="right-${i}" class="${Object.values(draft.matches).includes(right) ? 'paired' : ''}" ${disabled || !draft.selectedLeft ? 'disabled' : ''}>${e(right)}</button>`).join('')}</div></div>`;
 };
 
 /** Add a renderer and a matching validator to register a future exercise type. */
@@ -35,8 +36,11 @@ export const TYPE_LABELS: Record<Exercise['type'], string> = {
   cloze: 'Le mot manquant', translate: 'À vous de traduire', reading: 'Au fil du texte',
   dialogue: 'À vous de parler', culture: 'Escale culturelle', listening: 'Tendez l’oreille',
 };
-export function renderTask(exercise: Exercise, draft: AnswerDraft, disabled = false): string {
-  return `<div class="ma-task-type" data-exercise-id="${e(exercise.id)}">${TYPE_LABELS[exercise.type]}</div><h2 id="ma-question">${e(exercise.prompt)}</h2>${exercise.context ? `<div class="ma-exercise-context">${e(exercise.context).replace(/\n/g, '<br>')}</div>` : ''}<p class="ma-question-text">${e(exercise.question)}</p>${EXERCISE_RENDERERS[exercise.type](exercise, draft, disabled)}`;
+export function renderAnswerControls(exercise: Exercise, draft: AnswerDraft, disabled = false): string {
+  return EXERCISE_RENDERERS[exercise.type](exercise, draft, disabled);
+}
+export function renderTask(exercise: Exercise, draft: AnswerDraft, disabled = false, assessment = false): string {
+  return `<div class="ma-task-type" data-exercise-id="${e(exercise.id)}">${TYPE_LABELS[exercise.type]}</div>${exercise.dialogue?.length ? renderDialogue(exercise.dialogue, { showTranslationControl: !assessment || disabled }) : exercise.context ? `<div class="ma-exercise-context">${e(exercise.context).replace(/\n/g, '<br>')}</div>` : ''}<h2 id="ma-question">${e(exercise.question)}</h2><div class="ma-answer-controls">${renderAnswerControls(exercise, draft, disabled)}</div>`;
 }
 export function answerValue(exercise: Exercise, draft: AnswerDraft): string | string[] | Record<string, string> {
   if (exercise.type === 'order') return draft.ordered.map(index => tokensFor(exercise)[index]);

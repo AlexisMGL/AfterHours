@@ -12,22 +12,28 @@ Malagasy Adventure est la quatrième expérience du dépôt Afterhours. Elle uti
 | `src/malagasy/types.ts` | Contrats des mondes, unités, leçons, exercices, concepts, sources, audio et sauvegardes. |
 | `src/malagasy/worlds.ts` | Métadonnées des 20 destinations et progression envisagée. |
 | `src/malagasy/content.ts` | Registre de contenu consultable par les moteurs et les vues. |
+| `src/malagasy/dialogue-content.ts` | Scènes d’introduction et échanges associés aux activités. |
 | `src/malagasy/engine.ts` | Réponses acceptées, déblocage, mélange, maîtrise, révisions, XP et validation du contenu. |
 | `src/malagasy/storage.ts` | Chargement, sérialisation et validation du schéma de sauvegarde. |
 | `src/malagasy/exercise-view.ts` | Registre des rendus d’exercices, brouillon de réponse et échappement HTML. |
 | `src/malagasy/audio.ts` | Audio linguistique vérifié et effets de réponse synthétisés localement. |
 | `src/malagasy/art.ts` | Illustrations SVG locales. |
+| `src/malagasy/characters.ts`, `dialogue-view.ts`, `dialogue.css` | Personnages expressifs, bulles, traductions facultatives et réactions courtes. |
+| `src/malagasy/session.ts`, `lesson-view.ts`, `learning.css` | État transitoire, dialogues progressifs, repères unité/partie, quiz et clôture d’unité. |
+| `src/malagasy/map.ts`, `map.css`, `madagascar-coast.json` | Littoral Natural Earth simplifié, projection commune et escales accessibles. |
+| `src/malagasy/map-sources.ts` | Métadonnées géographiques pures, séparées de la géométrie pour les imports du contenu et des tests Node. |
+| `src/malagasy/AGENTS.md` | Vision initiale et consignes produit conservées pour les futurs agents. |
 
 Le contenu peut être subdivisé en fichiers de données sans modifier le contrat `Content`. Les références utilisent des identifiants persistants, jamais la position d’un élément dans un tableau.
 
 ## Flux d’apprentissage
 
 1. La vue demande au moteur si les prérequis de la leçon sont satisfaits.
-2. Les notes présentent les nouveaux concepts. `introduceLesson` ouvre ces concepts à l’entraînement sans les déclarer maîtrisés.
-3. Les exercices authored et les révisions éligibles sont affichés par le registre de rendus.
+2. Les expressions sont découvertes dans les scènes de Lova et Mia, tour par tour. Les traductions et les notes grammaticales sont facultatives. Les concepts sont réellement ouverts à l’entraînement lors du passage à la pratique, après cette découverte ; quitter une introduction ne doit pas ajouter toute sa banque aux révisions.
+3. Les six activités rédigées de la partie conservent leur ordre conversationnel, puis jusqu’à deux rappels antérieurs éligibles sont ajoutés. Le Centre de révision utilise le sélecteur générique ; les quiz utilisent leurs douze activités dédiées.
 4. Le validateur renvoie un résultat ; la vue affiche l’explication préparée dans le contenu.
 5. `recordAnswer` produit un nouvel état, actualise la maîtrise et planifie une révision.
-6. `completeLesson` valide le bilan et ouvre le prochain contenu lorsque le seuil requis est atteint.
+6. `completeLesson` valide la partie ou le quiz lorsque le seuil est atteint. La fin d’une partie et la clôture d’une unité ont des écrans distincts ; le résultat d’une nouvelle tentative reste indépendant d’une validation historique conservée.
 7. La couche de stockage enregistre automatiquement l’état. L’export JSON fournit une sauvegarde portable.
 
 `worldAvailable` vérifie la publication du monde et la fin de ses mondes prérequis. `worldCompleted` exige toutes les unités du monde, disponibles et terminées. Les neuf unités encore prévues empêchent donc de déclarer le monde 1 entièrement terminé après les trois unités de cette édition.
@@ -46,17 +52,17 @@ La validation du contenu vérifie chaque leçon contre la fermeture de ses propr
 
 Il n’existe pas encore de migration entre deux versions, puisque seul le schéma v1 existe. Ajouter une migration explicite avant d’accepter un ancien schéma. La sauvegarde locale n’est pas un mécanisme anti-triche et ne remplace pas un futur compte synchronisé.
 
-Si le document local est illisible, sa première copie brute est conservée séparément sous `afterhours.malagasy.progress.v1.recovery` avant toute nouvelle sauvegarde, lorsque le stockage et sa taille le permettent. La vue de sauvegarde permet de la télécharger pour examen. Cette copie n’est pas automatiquement réparée ni présentée comme importable.
+La vue de sauvegarde permet de télécharger cette copie pour examen ; elle n’est pas automatiquement réparée ni présentée comme importable.
 
 ## Extensions
 
-- **Nouvelle unité/monde** : ajouter les données et les sources, vérifier les prérequis, puis passer `implemented` à vrai. Voir [CONTENT_GUIDE.md](CONTENT_GUIDE.md).
+- **Nouvelle unité/monde** : seulement après nouvelle demande d’extension du périmètre actuel. Ajouter les dialogues, données et sources, vérifier les prérequis et le quiz, puis passer `implemented` à vrai. Voir [CONTENT_GUIDE.md](CONTENT_GUIDE.md).
 - **Nouveau type d’exercice** : étendre `ExerciseType`, enregistrer son validateur dans `exerciseValidators` et son rendu dans `EXERCISE_RENDERERS`, ajouter la validation de configuration et un test comportemental.
 - **Enregistrement linguistique** : ajouter une entrée `AudioAsset` documentée, puis une référence `audioId`. Un exercice d’écoute exige `status: 'verified'`.
 - **Compte distant** : implémenter un adaptateur de stockage et une stratégie de conflit ; ne pas confondre les identifiants de contenu et ceux d’un utilisateur.
 
 ## Construction et hébergement
 
-`npm run build` exécute TypeScript puis Vite et produit `dist/`. Les fichiers statiques restent compatibles avec `netlify.toml` et `public/_redirects`. Aucun serveur applicatif, secret ou appel d’IA n’est requis à l’exécution. Les liens de sources s’ouvrent seulement à la demande du lecteur. Aucun déploiement n’est impliqué par une simple modification locale du dépôt.
+`npm run build` exécute TypeScript puis Vite et produit `dist/`. Les fichiers statiques restent compatibles avec `netlify.toml` et `public/_redirects`. Aucun serveur applicatif, secret ou appel d’IA n’est requis à l’exécution. Les liens de sources sont visibles uniquement dans « Sources & crédits », dont le registre est partagé avec le contenu. Aucun déploiement n’est impliqué par une simple modification locale du dépôt.
 
 Les contrôles dédiés se trouvent dans `tests/malagasy-engine.test.ts` et les tests navigateur de `e2e/`. Vérifier leur résultat à chaque extension au lieu de considérer ce document comme une attestation de tests passés.
