@@ -2,6 +2,8 @@ import type { AudioAsset, Concept, Content, Exercise, ExerciseType, Lesson, Sour
 import { WORLDS } from './worlds';
 import { EXERCISE_DIALOGUES, LESSON_SCENES, SHORT_QUESTIONS } from './dialogue-content';
 import { MAP_SOURCES } from './map-sources';
+import { DIALOGUE_RECORDINGS, VOICE_SOURCES } from './voice-recordings';
+import { SYNTHETIC_RECORDINGS, SYNTHETIC_VOICE_SOURCES } from './synthetic-voices';
 
 const PC = 'peacecorps-intro', KEENAN = 'keenan-subject-final', ARTICLE = 'parker-article';
 const dictionary = (word: string, supports: string): Source => ({
@@ -43,6 +45,8 @@ export const SOURCES: Source[] = [
     supports: 'Thème du monde Ambohimanga : patrimoine royal et lieu sacré ; position géographique.',
     license: 'Conditions UNESCO ; description paraphrasée, aucune photographie ou carte reprise.' },
   ...MAP_SOURCES,
+  ...VOICE_SOURCES,
+  ...SYNTHETIC_VOICE_SOURCES,
 ];
 
 const L = {
@@ -276,6 +280,6 @@ export const UNITS: Unit[] = [
     ['unit-12', 12, 'L’aventure d’Antananarivo', 'Le défi du monde', ['Réviser cumulativement', 'Accomplir une aventure guidée']],
   ] as [string, number, string, string, string[]][]).map(([id, number, title, description, objectives]) => ({ id, worldId: 'world-01', number, title, malagasyTitle: 'À venir', description, lessonIds: [], implemented: false, objectives })),
 ];
-/** No language audio shipped: no unverified voice, no text scored as listening. */
-export const AUDIO: AudioAsset[] = [];
+/** Explicitly synthetic dialogue voices plus published human references; no listening XP. */
+export const AUDIO: AudioAsset[] = [...SYNTHETIC_RECORDINGS, ...DIALOGUE_RECORDINGS];
 export const CONTENT: Content = { worlds: WORLDS, units: UNITS, lessons: LESSONS, exercises: EXERCISES, concepts: CONCEPTS, vocabulary: VOCABULARY, sources: SOURCES, audio: AUDIO };

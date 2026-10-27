@@ -1,6 +1,6 @@
 # Sources linguistiques et limites
 
-Recherche effectuée le 25 octobre 2026 pour les trois premières unités. Le registre réellement utilisé par l’app est SOURCES dans src/malagasy/content.ts ; les leçons, concepts, fiches et exercices y renvoient par identifiants. L’écran Sources & Crédits est généré depuis ce registre. Les questions, explications françaises et petites scènes sont originales.
+Recherche initiale effectuée le 25 octobre 2026 pour les trois premières unités, complétée le 26 octobre pour la carte, les pronoms et les premiers enregistrements humains. Le registre réellement utilisé par l’app est SOURCES dans src/malagasy/content.ts ; les leçons, concepts, fiches et exercices y renvoient par identifiants. L’écran Sources & Crédits est généré depuis ce registre. Les questions, explications françaises et petites scènes sont originales.
 
 ## Références effectivement consultées
 
@@ -28,11 +28,19 @@ Le corpus vise le malgache standard d’initiation. Il ne prétend pas représen
 
 ## Audio et droits
 
-Aucun fichier de langue n’est embarqué dans cette version. Le PDF introductif annonce des pistes audio, mais leur présence, leurs droits précis, leur découpage et leur qualité n’ont pas été suffisamment vérifiés pour les distribuer. Pas de voix française ou anglaise présentée comme du malgache ; pas d’exercice de texte crédité comme écoute ; pas de reconnaissance vocale.
+Après le choix de l’utilisateur de commencer avec les enregistrements disponibles, huit fichiers humains publiés sur Wikimedia Commons sont distribués dans leur format original : `Salama`, `Misaotra`, `Veloma`, `Azafady`, `Tonga soa`, `Tompoko`, `Eny` et `Tsia`. Les pages de provenance, interprètes, licences CC BY-SA 3.0 ou 4.0, empreintes et limites de vérification sont détaillés dans [MALAGASY_AUDIO_SOURCES.md](MALAGASY_AUDIO_SOURCES.md) et conservés avec les fichiers locaux. Leurs attributions apparaissent dans « Sources & crédits ».
 
-L’infrastructure audio prévoit des références stables et le statut verified. Pour chaque futur enregistrement : obtenir le fichier et les droits, identifier le locuteur et la variété, faire contrôler transcription/prononciation, tester lecture et vitesse, ajouter la source et seulement ensuite activer les exercices d’écoute.
+Ces références couvrent uniquement leurs énoncés entiers. `Salama!` peut employer la référence `Salama`, mais les phrases de nom, d’origine et de statut ne sont pas doublées faute de fichiers exacts. Aucun assemblage de mots, changement de hauteur ou synthèse française/anglaise ne complète cette banque. Une même référence peut être lue pour les deux personnages ; aucun genre n’est déduit d’un pseudonyme et un couple de voix homme/femme n’est pas présenté comme livré.
 
-La consultation de sources n’autorise pas à redistribuer automatiquement leur texte, leurs bases ou leurs médias. Aucun enregistrement ni visuel externe n’a été copié. Les droits de chaque source sont indiqués avec prudence dans le registre. L’illustration urbaine et la carte stylisée sont produites dans le projet. Les effets sonores de l’interface ne sont pas des modèles de prononciation.
+Le statut `published-pronunciation` atteste la provenance consultée et la transcription correspondante ; il ne revendique pas une relecture malgachophone effectuée pour ce projet. La lecture automatique et le bouton de relecture accompagnent encore des exercices écrits, sans attribuer de maîtrise d’écoute ou de prononciation. Pas de reconnaissance vocale.
+
+Le PDF Peace Corps annonce également des pistes audio. Aucune n’est redistribuée ici : la provenance de l’asset exact, sa transcription et son découpage n’ont pas été finalisés. Une politique générale de réutilisation ne doit pas être transformée en autorisation supposée pour n’importe quel fichier.
+
+Pour chaque futur enregistrement : obtenir le fichier et ses droits, identifier le locuteur et la variété, contrôler la transcription et la prononciation, tester la lecture, puis ajouter la source et le niveau de vérification réel. Un fichier techniquement valide n’est pas une validation linguistique.
+
+La consultation de sources n’autorise pas à redistribuer automatiquement leur texte, leurs bases ou leurs médias. Les huit fichiers cités sont repris sans modification selon leurs licences ; les données Natural Earth de la carte sont attribuées séparément ci-dessous. Personnages, illustration urbaine et habillage sont originaux. Les effets sonores de réussite et d’erreur ne sont pas des modèles de prononciation.
+
+La piste de synthèse Google Cloud `mg-MG` en Preview est documentée dans [MALAGASY_VOICES.md](MALAGASY_VOICES.md), mais n’est pas activée. Le choix actuel ne demande ni clé ni génération payante. Aucun fournisseur n’est présenté comme une garantie de prononciation toujours correcte.
 
 ## Relecture malgachophone encore nécessaire
 
@@ -41,7 +49,7 @@ Avant de présenter cette application comme une formation linguistique validée 
 1. Faire relire les exemples composés, les contextes de politesse et les dialogues par un enseignant malgachophone du standard.
 2. Vérifier la naturalité des formules selon l’âge, la situation et le registre ; préciser si nécessaire les variantes.
 3. Valider une banque d’alternatives françaises et malgaches, sans accepter une erreur grammaticale par ressemblance.
-4. Enregistrer et contrôler un petit corpus natif autorisé ; les deux repères écrits ne remplacent pas une initiation phonétique.
+4. Faire contrôler les huit références et compléter les phrases des dialogues avec un corpus natif autorisé ; les deux repères écrits et la couverture actuelle ne remplacent pas une initiation phonétique complète.
 
 La fiabilité est donc traçable et exploitable pour un prototype de trois unités, mais aucune certification externe ni relecture native n’est revendiquée. Les neuf unités restantes du premier monde et les mondes 2–20 sont planifiés, pas rédigés ni vérifiés.
 

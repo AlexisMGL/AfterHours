@@ -1,0 +1,278 @@
+{
+  "schemaVersion": 1,
+  "recordings": [
+    {
+      "id": "voice-lova-b1d6b50e6360",
+      "character": "lova",
+      "text": "Salama!",
+      "filename": "voice-lova-b1d6b50e6360.wav",
+      "voice": "Puck"
+    },
+    {
+      "id": "voice-mia-c5b959628524",
+      "character": "mia",
+      "text": "Salama!",
+      "filename": "voice-mia-c5b959628524.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-mia-62c7a0f7e9d9",
+      "character": "mia",
+      "text": "Misaotra!",
+      "filename": "voice-mia-62c7a0f7e9d9.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-mia-aaec6cd1ec77",
+      "character": "mia",
+      "text": "Azafady!",
+      "filename": "voice-mia-aaec6cd1ec77.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-lova-b81865390ea7",
+      "character": "lova",
+      "text": "Veloma!",
+      "filename": "voice-lova-b81865390ea7.wav",
+      "voice": "Puck"
+    },
+    {
+      "id": "voice-mia-214bf1011cc5",
+      "character": "mia",
+      "text": "Veloma!",
+      "filename": "voice-mia-214bf1011cc5.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-lova-8a39d620e0f9",
+      "character": "lova",
+      "text": "Salama! Tonga soa!",
+      "filename": "voice-lova-8a39d620e0f9.wav",
+      "voice": "Puck"
+    },
+    {
+      "id": "voice-lova-04215843ffd9",
+      "character": "lova",
+      "text": "Tonga soa!",
+      "filename": "voice-lova-04215843ffd9.wav",
+      "voice": "Puck"
+    },
+    {
+      "id": "voice-mia-5c576239f65f",
+      "character": "mia",
+      "text": "Misaotra, tompoko.",
+      "filename": "voice-mia-5c576239f65f.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-mia-f4b2f2d88be6",
+      "character": "mia",
+      "text": "Eny, tompoko.",
+      "filename": "voice-mia-f4b2f2d88be6.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-mia-0ebc4d1c1f83",
+      "character": "mia",
+      "text": "Tsia, tompoko.",
+      "filename": "voice-mia-0ebc4d1c1f83.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-mia-51788ed2bc3f",
+      "character": "mia",
+      "text": "Salama, tompoko.",
+      "filename": "voice-mia-51788ed2bc3f.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-lova-229b36b041a7",
+      "character": "lova",
+      "text": "Iza no anaranao?",
+      "filename": "voice-lova-229b36b041a7.wav",
+      "voice": "Puck"
+    },
+    {
+      "id": "voice-mia-22d2232bf0b3",
+      "character": "mia",
+      "text": "Mia no anarako.",
+      "filename": "voice-mia-22d2232bf0b3.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-mia-5bba12bc2404",
+      "character": "mia",
+      "text": "Iza no anaranao?",
+      "filename": "voice-mia-5bba12bc2404.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-lova-1bd0c25a23ab",
+      "character": "lova",
+      "text": "Lova no anarako.",
+      "filename": "voice-lova-1bd0c25a23ab.wav",
+      "voice": "Puck"
+    },
+    {
+      "id": "voice-lova-97c9844ecd72",
+      "character": "lova",
+      "text": "Avy aiza ianao?",
+      "filename": "voice-lova-97c9844ecd72.wav",
+      "voice": "Puck"
+    },
+    {
+      "id": "voice-mia-22cfeed68c6b",
+      "character": "mia",
+      "text": "Avy any Frantsa aho.",
+      "filename": "voice-mia-22cfeed68c6b.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-lova-75336e03c7d7",
+      "character": "lova",
+      "text": "Mpiofana aho.",
+      "filename": "voice-lova-75336e03c7d7.wav",
+      "voice": "Puck"
+    },
+    {
+      "id": "voice-mia-c6b2473a115e",
+      "character": "mia",
+      "text": "Mpiofana aho.",
+      "filename": "voice-mia-c6b2473a115e.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-lova-aadf3269c77a",
+      "character": "lova",
+      "text": "Mpiofana izy.",
+      "filename": "voice-lova-aadf3269c77a.wav",
+      "voice": "Puck"
+    },
+    {
+      "id": "voice-mia-67350b4f599f",
+      "character": "mia",
+      "text": "Eny.",
+      "filename": "voice-mia-67350b4f599f.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-mia-42b4afb81ba3",
+      "character": "mia",
+      "text": "Salama aho.",
+      "filename": "voice-mia-42b4afb81ba3.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-lova-377843589337",
+      "character": "lova",
+      "text": "Eny.",
+      "filename": "voice-lova-377843589337.wav",
+      "voice": "Puck"
+    },
+    {
+      "id": "voice-lova-17856a458053",
+      "character": "lova",
+      "text": "Salama ny mpiofana.",
+      "filename": "voice-lova-17856a458053.wav",
+      "voice": "Puck"
+    },
+    {
+      "id": "voice-lova-6d510b8024a5",
+      "character": "lova",
+      "text": "Mpiofana ve ianao?",
+      "filename": "voice-lova-6d510b8024a5.wav",
+      "voice": "Puck"
+    },
+    {
+      "id": "voice-mia-ef5cae07b769",
+      "character": "mia",
+      "text": "Eny, mpiofana aho.",
+      "filename": "voice-mia-ef5cae07b769.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-mia-79ec285f1989",
+      "character": "mia",
+      "text": "Tsia, tsy mpiofana aho.",
+      "filename": "voice-mia-79ec285f1989.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-mia-c06f1f1cbbb0",
+      "character": "mia",
+      "text": "Mpiofana ve ianao?",
+      "filename": "voice-mia-c06f1f1cbbb0.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-lova-6e475e0328d1",
+      "character": "lova",
+      "text": "Eny, mpiofana aho.",
+      "filename": "voice-lova-6e475e0328d1.wav",
+      "voice": "Puck"
+    },
+    {
+      "id": "voice-lova-93297757665e",
+      "character": "lova",
+      "text": "Salama ve ianao?",
+      "filename": "voice-lova-93297757665e.wav",
+      "voice": "Puck"
+    },
+    {
+      "id": "voice-mia-db7b3f1ef69f",
+      "character": "mia",
+      "text": "Eny, salama aho.",
+      "filename": "voice-mia-db7b3f1ef69f.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-lova-95ae79ad9c44",
+      "character": "lova",
+      "text": "Tsia.",
+      "filename": "voice-lova-95ae79ad9c44.wav",
+      "voice": "Puck"
+    },
+    {
+      "id": "voice-mia-789c267a42d8",
+      "character": "mia",
+      "text": "Tonga soa!",
+      "filename": "voice-mia-789c267a42d8.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-lova-688d4157655b",
+      "character": "lova",
+      "text": "Misaotra!",
+      "filename": "voice-lova-688d4157655b.wav",
+      "voice": "Puck"
+    },
+    {
+      "id": "voice-lova-053e78c62798",
+      "character": "lova",
+      "text": "Salama! Iza no anaranao?",
+      "filename": "voice-lova-053e78c62798.wav",
+      "voice": "Puck"
+    },
+    {
+      "id": "voice-mia-58c561cb9a64",
+      "character": "mia",
+      "text": "Mia no anarako. Avy any Frantsa aho.",
+      "filename": "voice-mia-58c561cb9a64.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-mia-829aa9c0fdc9",
+      "character": "mia",
+      "text": "Salama! Mia no anarako.",
+      "filename": "voice-mia-829aa9c0fdc9.wav",
+      "voice": "Kore"
+    },
+    {
+      "id": "voice-mia-f86c8bede545",
+      "character": "mia",
+      "text": "Avy any Frantsa aho. Mpiofana aho.",
+      "filename": "voice-mia-f86c8bede545.wav",
+      "voice": "Kore"
+    }
+  ]
+}

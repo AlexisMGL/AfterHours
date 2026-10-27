@@ -12,6 +12,8 @@ import { feedbackSound, completionSound, MalagasyAudio } from './audio';
 import { renderLearningSession, sessionPassed } from './lesson-view';
 import type { LearningSession } from './session';
 import { characterArt } from './characters';
+import { DialogueAudioPlayer, type DialogueAudioCue, type DialogueAudioEvent } from './dialogue-audio';
+import './voices.css';
 
 type View = 'path' | 'worlds' | 'reviews' | 'vocabulary' | 'stats' | 'sources' | 'backup';
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -23,6 +25,8 @@ let session: LearningSession | null = null;
 let pendingImport: Progress | null = null;
 let search = '';
 const audio = new MalagasyAudio(CONTENT.audio);
+const dialogueAudio = new DialogueAudioPlayer(CONTENT.audio, { onStatus: updateVoiceStatus });
+dialogueAudio.muted = progress.settings.muted;
 audio.muted = progress.settings.muted;
 audio.onStatus = (status, message) => {
   if (!session || session.stage !== 'exercise') return;
@@ -52,7 +56,7 @@ function persist(): void {
   if (!saveProgress(progress)) storageWarning = 'Le navigateur ne permet pas la sauvegarde locale. Exportez votre progression pour la conserver.';
 }
 function navigate(destination: View): void {
-  session = null; audio.stop(); view = destination;
+  session = null; audio.stop(); dialogueAudio.stop(); view = destination;
   history.replaceState(null, '', `#${view}`);
   render(); window.scrollTo({ top: 0, behavior: 'instant' });
   app.querySelector<HTMLElement>('main h1')?.focus({ preventScroll: true });
@@ -108,7 +112,7 @@ function statsPage(): string {
   return `${pageHeading('CHAQUE PAS COMPTE', 'Votre carnet de progrès.', 'Une leçon terminée est une étape. Une notion retenue est un acquis qui se construit avec le temps.')}<div class="ma-metric-grid"><div><span>EXPÉRIENCE</span><strong>${progress.xp}<small> XP</small></strong><small>Niveau ${playerLevel(progress.xp)}</small></div><div><span>LEÇONS TERMINÉES</span><strong>${progress.completedLessons.length}<small> / ${activeLessons().length}</small></strong><small>${completedUnits} / 3 unités validées</small></div><div><span>MAÎTRISE MOYENNE</span><strong>${averageMastery()}<small> %</small></strong><small>sur ${knownConcepts()} notions découvertes</small></div></div><div class="ma-two-columns"><section class="ma-panel"><div class="ma-card-title">${icon('stats')}<h2>Votre pratique en chiffres</h2></div><dl class="ma-stats-list"><div><dt>Réponses données</dt><dd>${progress.history.length}</dd></div><div><dt>Réussites</dt><dd>${successful}</dd></div><div><dt>Précision de l’historique</dt><dd>${progress.history.length ? percent(successful / progress.history.length * 100) : 0} %</dd></div><div><dt>Jours d’activité</dt><dd>${progress.activityDates.length}</dd></div><div><dt>Série en cours</dt><dd>${streakDays(progress)} jours</dd></div><div><dt>Notions maîtrisées</dt><dd>${masteredConcepts()}</dd></div></dl><p class="ma-page-footnote">Historique limité aux dernières réponses conservées. Aucun niveau de langue officiel n’est déduit de ces statistiques.</p></section><section class="ma-panel"><div class="ma-card-title">${icon('star')}<h2>Les petites victoires</h2></div>${[['first-lesson', 'Le premier pas', 'Terminer votre première leçon.'], ['three-lessons', 'Le goût du voyage', 'Terminer trois leçons.'], ['first-unit', 'Première escale', 'Réussir un premier bilan d’unité.']].map(([id, name, description]) => `<div class="ma-achievement ${progress.achievements.includes(id) ? 'earned' : ''}"><span>${icon(progress.achievements.includes(id) ? 'star' : 'lock', 22)}</span><div><h3>${name}</h3><p>${description}</p></div>${progress.achievements.includes(id) ? icon('check', 18) : ''}</div>`).join('')}</section></div>`;
 }
 function sourcesPage(): string {
-  return `${pageHeading('APPRENDRE AVEC CONFIANCE', 'Des mots, des sources.', 'Le contenu linguistique est accompagné de ses références. Les exercices et illustrations ont été créés pour cette application.')}<div class="ma-source-summary"><span>${icon('source', 28)}</span><div><h2>Une base documentée, une validation à poursuivre.</h2><p>Les références ci-dessous étayent les premières unités en malgache standard. Une relecture par une personne malgachophone reste nécessaire avant une diffusion pédagogique large. Le programme des mondes futurs est prévisionnel.</p></div></div><div class="ma-section-heading"><h2>Références effectivement consultées</h2><span class="ma-small-label">REGISTRE DES SOURCES</span></div><div class="ma-source-list">${CONTENT.sources.filter(source => source.consulted).map(source => `<article id="source-${e(source.id)}"><div><span class="ma-small-label">${e(source.category.toUpperCase())}${source.date ? ` · ${e(source.date)}` : ''}</span><h3><a href="${e(source.url)}" target="_blank" rel="noopener noreferrer">${e(source.title)} ↗</a></h3><span class="ma-source-author">${e(source.author)}</span><p>${e(source.supports)}</p><small>${e(source.license)}</small></div></article>`).join('')}</div>${CONTENT.sources.some(source => !source.consulted) ? `<div class="ma-section-heading"><h2>Pour aller plus loin</h2></div><p>Ces références sont proposées en complément et n’ont pas servi à valider les exercices de cette édition.</p>${CONTENT.sources.filter(source => !source.consulted).map(source => `<p><a href="${e(source.url)}" target="_blank" rel="noopener noreferrer">${e(source.title)} ↗</a></p>`).join('')}` : ''}<div class="ma-two-columns"><section class="ma-panel"><h2>Prononciation & audio</h2><p>Cette édition ne contient pas encore d’enregistrements malgaches vérifiés. La synthèse vocale du navigateur n’est pas utilisée. Les petits sons de réponse sont des effets d’interface créés localement.</p><p>Les exercices restent écrits et ne valident aucune compétence d’écoute ou de prononciation.</p></section><section class="ma-panel"><h2>Images & réutilisation</h2><p>Personnages, illustration d’Antananarivo et icônes : dessins vectoriels originaux créés pour Afterhours. Le fond géographique de la carte provient de Natural Earth, cité ci-dessus. Aucun média distant n’est chargé à l’utilisation.</p><p>Les références sont citées pour étayer les connaissances. Cela n’implique aucune autorisation de recopier leurs cours ou leurs enregistrements.</p></section></div>`;
+  return `${pageHeading('APPRENDRE AVEC CONFIANCE', 'Des mots, des sources.', 'Le contenu linguistique est accompagné de ses références. Les exercices et illustrations ont été créés pour cette application.')}<div class="ma-source-summary"><span>${icon('source', 28)}</span><div><h2>Une base documentée, une validation à poursuivre.</h2><p>Les références ci-dessous étayent les premières unités en malgache standard. Une relecture par une personne malgachophone reste nécessaire avant une diffusion pédagogique large. Le programme des mondes futurs est prévisionnel.</p></div></div><div class="ma-section-heading"><h2>Références effectivement consultées</h2><span class="ma-small-label">REGISTRE DES SOURCES</span></div><div class="ma-source-list">${CONTENT.sources.filter(source => source.consulted).map(source => `<article id="source-${e(source.id)}"><div><span class="ma-small-label">${e(source.category.toUpperCase())}${source.date ? ` · ${e(source.date)}` : ''}</span><h3><a href="${e(source.url)}" target="_blank" rel="noopener noreferrer">${e(source.title)} ↗</a></h3><span class="ma-source-author">${e(source.author)}</span><p>${e(source.supports)}</p><small>${e(source.license)}</small></div></article>`).join('')}</div>${CONTENT.sources.some(source => !source.consulted) ? `<div class="ma-section-heading"><h2>Pour aller plus loin</h2></div><p>Ces références sont proposées en complément et n’ont pas servi à valider les exercices de cette édition.</p>${CONTENT.sources.filter(source => !source.consulted).map(source => `<p><a href="${e(source.url)}" target="_blank" rel="noopener noreferrer">${e(source.title)} ↗</a></p>`).join('')}` : ''}<div class="ma-two-columns"><section class="ma-panel"><h2>Prononciation & audio</h2><p>Les 35 répliques complètes des trois unités disposent d’une voix numérique malgache, produite avec le modèle MMS spécialisé pour cette langue. La lecture se déclenche dans les dialogues ; le haut-parleur permet de réécouter et le bouton 0,75× de ralentir. Les textes à trous restent silencieux pour ne pas inventer ni révéler un mot absent.</p><p>Le modèle fournit une seule voix, partagée par Lova et Mia. La synthèse n’a pas été validée phrase par phrase par un enseignant malgachophone : la prononciation ne peut pas être garantie parfaite. Les fichiers sont identifiés comme synthétiques et ne valident aucune compétence orale. La licence du modèle est non commerciale. Les huit enregistrements humains de Manantiana, Jagwar et Bluerose25 restent conservés comme références complémentaires.</p></section><section class="ma-panel"><h2>Images & réutilisation</h2><p>Personnages, illustration d’Antananarivo et icônes : dessins vectoriels originaux créés pour Afterhours. Le fond géographique de la carte provient de Natural Earth, cité ci-dessus. Les voix humaines réutilisées sont distribuées localement avec les licences et attributions indiquées ci-dessus ; aucun média distant n’est chargé à l’utilisation.</p><p>Les références sont citées pour étayer les connaissances. Cela n’implique aucune autorisation de recopier leurs cours ou leurs enregistrements.</p></section></div>`;
 }
 function recoveryNotice(): string {
   return loadRecovery() ? '<section class="ma-panel"><h2>Une copie à examiner</h2><p>Une ancienne sauvegarde illisible a été conservée séparément avant la création du nouveau carnet. Vous pouvez la télécharger pour la faire examiner ; elle ne peut pas être importée en l’état.</p><button class="ma-secondary" data-action="export-recovery">Télécharger la copie conservée</button></section>' : '';
@@ -121,14 +125,52 @@ function sessionPage(): string {
   return renderLearningSession(session!, progress, CONTENT, nextLesson());
 }
 
-function render(): void {
+function render(autoplayVoices = false): void {
   app.innerHTML = `<div class="ma-app ${session ? 'ma-in-session' : ''}">${sidebar()}<div class="ma-workspace">${topbar()}${storageWarning ? `<div class="ma-storage-warning" role="status">${e(storageWarning)} <button data-view="backup">Ma sauvegarde</button></div>` : ''}<main class="ma-main" id="ma-main">${session ? sessionPage() : ({ path: pathPage, worlds: worldsPage, reviews: reviewsPage, vocabulary: vocabularyPage, stats: statsPage, sources: sourcesPage, backup: backupPage })[view]()}</main><footer class="ma-footer"><span>MALAGASY ADVENTURE <i>par Afterhours</i></span><span>APPRENDRE. RENCONTRER. EXPLORER.</span></footer></div><dialog class="ma-dialog" id="ma-dialog" aria-labelledby="ma-dialog-title"></dialog><div class="ma-toast" id="ma-toast" role="status" aria-live="polite"></div></div>`;
+  synchronizeVoices(autoplayVoices);
+}
+
+function visibleVoiceCues(): { context: string; cues: DialogueAudioCue[] } | null {
+  const scene = app.querySelector<HTMLElement>('[data-dialogue-context]');
+  if (!scene) return null;
+  const cues = [...scene.querySelectorAll<HTMLButtonElement>('.ma-voice-replay[data-audio-id]')].map(button => ({
+    key: button.dataset.voiceKey!, audioId: button.dataset.audioId!,
+    text: button.closest('.ma-speech')?.querySelector('.ma-speech-text')?.textContent ?? '',
+  }));
+  return { context: scene.dataset.dialogueContext!, cues };
+}
+function synchronizeVoices(autoplay: boolean): void {
+  if (!session || session.stage === 'done') { dialogueAudio.stop(); return; }
+  const visible = visibleVoiceCues();
+  if (!visible) { dialogueAudio.stop(); return; }
+  dialogueAudio.rate = 1;
+  dialogueAudio.sync(visible.context, visible.cues, { autoplay });
+}
+function updateVoiceStatus(event: DialogueAudioEvent): void {
+  for (const bubble of app.querySelectorAll<HTMLElement>('.ma-speech[data-voice-key]')) {
+    const active = event.turnKey === bubble.dataset.voiceKey;
+    const state = active ? event.state : 'idle';
+    bubble.dataset.voiceState = state;
+    for (const button of bubble.querySelectorAll<HTMLButtonElement>('.ma-voice-replay, .ma-voice-slow')) {
+      button.setAttribute('aria-busy', String(state === 'loading'));
+      button.setAttribute('aria-pressed', String(state === 'playing' && button.classList.contains('ma-voice-replay')));
+    }
+    const status = bubble.querySelector<HTMLElement>('.ma-voice-status');
+    if (status) status.textContent = active && (event.state === 'blocked' || event.state === 'error') ? event.message ?? 'Lecture indisponible. Touchez le haut-parleur pour réessayer.' : '';
+  }
+}
+function replayDialogue(key: string, slow: boolean): void {
+  const cue = visibleVoiceCues()?.cues.find(item => item.key === key);
+  if (!cue) return;
+  if (progress.settings.muted) { toast('Le son est coupé. Activez-le pour écouter.'); return; }
+  void dialogueAudio.replay(cue, slow ? .75 : 1);
 }
 
 function startLesson(id: string): void {
   const lesson = lessonById(id);
   if (!lesson || !lessonAvailable(lesson, progress, CONTENT)) return;
   audio.stop();
+  dialogueAudio.stop();
   // Prepare the bank without exposing unseen dialogue words to the review centre.
   const prospective = introduceLesson(progress, lesson, CONTENT);
   const authored = lesson.exerciseIds.map(exerciseId => CONTENT.exercises.find(exercise => exercise.id === exerciseId)).filter((exercise): exercise is Exercise => !!exercise && exercise.concepts.every(conceptId => prospective.concepts[conceptId]?.introduced));
@@ -138,20 +180,22 @@ function startLesson(id: string): void {
   const exercises = lesson.kind === 'checkpoint' ? authored : [...authored, ...recalls];
   if (!exercises.length) { toast('Cette leçon n’a pas encore d’exercices disponibles.'); return; }
   session = { lesson, exercises, index: 0, correct: 0, draft: emptyDraft(), answered: false, wasCorrect: false, stage: 'notes', review: false, xpBefore: progress.xp, sceneIndex: 0, revealedTurns: 1, combo: 0, maxCombo: 0, lastReward: 0, results: [] };
-  render(); window.scrollTo(0, 0); app.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
+  render(true); window.scrollTo(0, 0); app.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true });
 }
 function startReview(): void {
   audio.stop();
+  dialogueAudio.stop();
   const exercises = selectMixedExercises(CONTENT, progress, null, 8);
   if (!exercises.length) { navigate('path'); return; }
   const lesson: Lesson = { id: 'review-session', worldId: '', unitId: '', title: 'Le rendez-vous des révisions', description: 'Retrouver les notions déjà découvertes.', kind: 'checkpoint', objectives: [], introduces: [], reviews: [], prerequisites: [], exerciseIds: exercises.map(exercise => exercise.id), notes: [], estimatedMinutes: 5, sourceIds: [] };
   session = { lesson, exercises, index: 0, correct: 0, draft: emptyDraft(), answered: false, wasCorrect: false, stage: 'exercise', review: true, xpBefore: progress.xp, sceneIndex: 0, revealedTurns: 1, combo: 0, maxCombo: 0, lastReward: 0, results: [] };
-  render(); window.scrollTo(0, 0); app.querySelector<HTMLElement>('#ma-question')?.focus();
+  render(true); window.scrollTo(0, 0); app.querySelector<HTMLElement>('#ma-question')?.focus();
 }
 function checkAnswer(): void {
   if (!session || session.stage !== 'exercise' || session.answered) return;
   const exercise = session.exercises[session.index];
   if (!answerReady()) return;
+  dialogueAudio.stop();
   session.wasCorrect = validateAnswer(exercise, answerValue(exercise, session.draft));
   session.answered = true; session.correct += Number(session.wasCorrect);
   session.combo = session.wasCorrect ? session.combo + 1 : 0;
@@ -176,7 +220,7 @@ function advanceExercise(): void {
     persist(); session.stage = 'done';
     if (sessionPassed(session)) completionSound(progress.settings.muted, !session.review && session.lesson.kind === 'checkpoint');
   }
-  render(); window.scrollTo({ top: 0, behavior: 'instant' });
+  render(true); window.scrollTo({ top: 0, behavior: 'instant' });
   const heading = app.querySelector<HTMLElement>('#ma-question, .ma-completion h1');
   heading?.setAttribute('tabindex', '-1'); heading?.focus({ preventScroll: true });
 }
@@ -194,7 +238,7 @@ function advanceDialogue(): void {
   if (!scene) return;
   if (session.revealedTurns < scene.turns.length) session.revealedTurns++;
   else if (session.sceneIndex + 1 < (session.lesson.scenes?.length ?? 0)) { session.sceneIndex++; session.revealedTurns = 1; }
-  render();
+  render(true);
   app.querySelector<HTMLElement>('.ma-dialogue-actions .ma-primary')?.focus({ preventScroll: true });
 }
 function answerReady(): boolean {
@@ -280,6 +324,8 @@ app.addEventListener('click', event => {
     if (data.right !== undefined && session.draft.selectedLeft) { for (const left of Object.keys(session.draft.matches)) if (session.draft.matches[left] === data.right) delete session.draft.matches[left]; session.draft.matches[session.draft.selectedLeft] = data.right; session.draft.selectedLeft = ''; updateTask(); app.querySelector<HTMLElement>('[data-left]:not(.paired)')?.focus({ preventScroll: true }); return; }
   }
   switch (data.action) {
+    case 'replay-dialogue': replayDialogue(data.voiceKey ?? '', false); break;
+    case 'slow-dialogue': replayDialogue(data.voiceKey ?? '', true); break;
     case 'advance-dialogue': advanceDialogue(); break;
     case 'play-audio': void playLanguageAudio(false); break;
     case 'replay-audio': void playLanguageAudio(true); break;
@@ -291,17 +337,17 @@ app.addEventListener('click', event => {
       const scenes = session.lesson.scenes ?? [];
       if (scenes.length && (session.sceneIndex !== scenes.length - 1 || session.revealedTurns < scenes[session.sceneIndex].turns.length)) break;
       progress = introduceLesson(progress, session.lesson, CONTENT); persist();
-      session.stage = 'exercise'; render(); window.scrollTo(0, 0);
+      session.stage = 'exercise'; render(true); window.scrollTo(0, 0);
       const question = app.querySelector<HTMLElement>('#ma-question'); question?.setAttribute('tabindex', '-1'); question?.focus({ preventScroll: true });
     } break;
     case 'next-exercise': advanceExercise(); break;
-    case 'exit-lesson': showDialog('Faire une pause ?', '<p>Vos réponses sont déjà sauvegardées. La leçon reste à valider : vous reprendrez ses exercices depuis le début.</p><div class="ma-dialog-actions"><button class="ma-primary" data-view="path">Retour au parcours</button><button class="ma-secondary" data-action="close-dialog">Poursuivre la leçon</button></div>'); break;
-    case 'mute': progress = { ...progress, settings: { ...progress.settings, muted: !progress.settings.muted }, updatedAt: new Date().toISOString() }; audio.muted = progress.settings.muted; persist(); render(); break;
+    case 'exit-lesson': dialogueAudio.stop(); showDialog('Faire une pause ?', '<p>Vos réponses sont déjà sauvegardées. La leçon reste à valider : vous reprendrez ses exercices depuis le début.</p><div class="ma-dialog-actions"><button class="ma-primary" data-view="path">Retour au parcours</button><button class="ma-secondary" data-action="close-dialog">Poursuivre la leçon</button></div>'); break;
+    case 'mute': progress = { ...progress, settings: { ...progress.settings, muted: !progress.settings.muted }, updatedAt: new Date().toISOString() }; audio.muted = progress.settings.muted; dialogueAudio.muted = progress.settings.muted; persist(); render(); break;
     case 'export': exportSave(); break;
     case 'export-recovery': exportRecovery(); break;
     case 'import': app.querySelector<HTMLInputElement>('#ma-import-file')?.click(); break;
     case 'close-dialog': pendingImport = null; app.querySelector<HTMLDialogElement>('#ma-dialog')?.close(); break;
-    case 'confirm-import': if (pendingImport) { progress = pendingImport; pendingImport = null; storageWarning = ''; persist(); navigate('backup'); toast('Votre carnet a été restauré. Bon retour !'); } break;
+    case 'confirm-import': if (pendingImport) { progress = pendingImport; audio.muted = progress.settings.muted; dialogueAudio.muted = progress.settings.muted; pendingImport = null; storageWarning = ''; persist(); navigate('backup'); toast('Votre carnet a été restauré. Bon retour !'); } break;
   }
 });
 window.addEventListener('hashchange', () => navigate(readView()));
@@ -309,5 +355,6 @@ app.addEventListener('keydown', event => {
   const marker = (event.target as Element).closest<SVGElement>('[data-world][role="button"]');
   if (marker && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); worldDetails(marker.dataset.world ?? ''); }
 });
-window.addEventListener('pagehide', () => { audio.stop(); });
+window.addEventListener('pagehide', () => { audio.stop(); dialogueAudio.stop(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) dialogueAudio.stop(); });
 render();

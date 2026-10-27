@@ -17,6 +17,12 @@ Malagasy Adventure est la quatrième expérience du dépôt Afterhours. Elle uti
 | `src/malagasy/storage.ts` | Chargement, sérialisation et validation du schéma de sauvegarde. |
 | `src/malagasy/exercise-view.ts` | Registre des rendus d’exercices, brouillon de réponse et échappement HTML. |
 | `src/malagasy/audio.ts` | Audio linguistique vérifié et effets de réponse synthétisés localement. |
+| `src/malagasy/dialogue-audio.ts` | File de lecture des répliques, relecture, annulation, muet et gestion des politiques audio du navigateur. |
+| `src/malagasy/voice-bank.ts`, `voice-recordings.ts` | Correspondance exacte des répliques et références humaines ; la banque numérique reste distincte de leur validation linguistique. |
+| `src/malagasy/synthetic-voices.ts`, `public/malagasy/voices/mms/` | Registre des 35 énoncés numériques et WAV locaux avec manifeste de provenance. |
+| `scripts/generate-malagasy-mms.mjs` | Génération auteur locale depuis les dialogues, sans clé ni moteur TTS dans le navigateur. |
+| `src/malagasy/recording-references.json`, `public/malagasy/voices/` | Métadonnées de provenance, licences et fichiers originaux distribués localement. |
+| `src/malagasy/voice-plan.json`, `scripts/malagasy-voices.mjs` | Inventaire des phrases à enregistrer et outil hors ligne facultatif ; les brouillons restent `pending`. |
 | `src/malagasy/art.ts` | Illustrations SVG locales. |
 | `src/malagasy/characters.ts`, `dialogue-view.ts`, `dialogue.css` | Personnages expressifs, bulles, traductions facultatives et réactions courtes. |
 | `src/malagasy/session.ts`, `lesson-view.ts`, `learning.css` | État transitoire, dialogues progressifs, repères unité/partie, quiz et clôture d’unité. |
@@ -40,6 +46,20 @@ Le contenu peut être subdivisé en fichiers de données sans modifier le contra
 
 Les fonctions des moteurs ne dépendent pas du DOM, de `localStorage` ou de l’heure globale lorsque le paramètre de date est fourni. Cela permet des tests reproductibles. La session en cours et le brouillon d’un exercice sont de l’état d’interface ; ils ne sont pas des identifiants persistants.
 
+## Lecture des voix de dialogue
+
+`recordingForTurn` relie un tour à un fichier `AudioAsset` uniquement lorsque la transcription correspond à l’énoncé complet. Les huit expressions humaines restent des références et un repli documenté, sans découpage ni collage de mots pour fabriquer d’autres phrases. Le personnage `any` permet de partager une référence pour Lova et Mia sans prétendre fournir deux genres de voix.
+
+La demande du 27 octobre donne la priorité à une banque de **phrases synthétisées en malgache**, préparées hors ligne puis servies statiquement. La banque MMS actuelle contient 35 énoncés distincts issus des dialogues, soit 1 691 076 octets de WAV mono 16 kHz. Le modèle MMS malgache original et sa conversion ONNX ont un seul locuteur, sans paire masculine/féminine simulée. La génération n’est pas un appel TTS payant à chaque visite et n’impose aucun compte Cloud au joueur.
+
+`scripts/generate-malagasy-mms.mjs` charge un runtime auteur isolé dans `.tools/mms-runtime`, garde les poids FP32 dans `.tools/mms-cache`, extrait les phrases complètes et écrit le manifeste public ainsi que le registre TypeScript. Les fichiers existants sont conservés si leurs transcriptions et empreintes correspondent ; un changement de texte doit être suivi d’une régénération et des tests de couverture. Les ellipses de réponse ne sont pas prononcées comme une phrase remplie.
+
+`DialogueAudioPlayer` garde une seule lecture active. Sa synchronisation mémorise les tours déjà visibles pour éviter les reprises dues aux rerendus ; une relecture manuelle annule la file précédente. Un changement de contexte, le muet ou la sortie d’une leçon arrête les fichiers. Le blocage de lecture automatique par le navigateur est distinct d’un fichier illisible et permet une reprise manuelle.
+
+Les références `published-pronunciation` sont documentées par leur publication et leur transcription ; elles ne sont pas rebaptisées `native-speaker-reviewed` sans contrôle linguistique réalisé. Une sortie de modèle reste identifiée `synthetic` / `model-generated`, distincte d’un fichier validé pour une évaluation d’écoute. Le lecteur de dialogue ne met pas à jour la maîtrise orale. Les liens de licence, notamment la restriction non commerciale de MMS, et la couverture apparaissent seulement dans « Sources & crédits ».
+
+La lecture utilise les fichiers locaux sans secret ni appel TTS à l’exécution. Le script Cloud reste un outil facultatif de préparation : ses sorties sont des brouillons `pending`. La banque numérique locale peut diffuser des sorties explicitement synthétiques sans les déclarer validées par un enseignant. Voir [MALAGASY_VOICES.md](MALAGASY_VOICES.md).
+
 ## Sauvegarde et sécurité d’import
 
 Le format courant est `schemaVersion: 1`. Il contient les paramètres, XP, leçons terminées, récompenses déjà accordées, concepts, dates d’activité, succès et historique borné. La clé locale est `afterhours.malagasy.progress.v1` ; aucun autre jeu ne partage cet état.
@@ -58,7 +78,7 @@ La vue de sauvegarde permet de télécharger cette copie pour examen ; elle n’
 
 - **Nouvelle unité/monde** : seulement après nouvelle demande d’extension du périmètre actuel. Ajouter les dialogues, données et sources, vérifier les prérequis et le quiz, puis passer `implemented` à vrai. Voir [CONTENT_GUIDE.md](CONTENT_GUIDE.md).
 - **Nouveau type d’exercice** : étendre `ExerciseType`, enregistrer son validateur dans `exerciseValidators` et son rendu dans `EXERCISE_RENDERERS`, ajouter la validation de configuration et un test comportemental.
-- **Enregistrement linguistique** : ajouter une entrée `AudioAsset` documentée, puis une référence `audioId`. Un exercice d’écoute exige `status: 'verified'`.
+- **Enregistrement linguistique** : ajouter une entrée `AudioAsset` documentée, une transcription entière et son degré de contrôle linguistique, puis la référence d’une réplique. Vérifier la licence avant diffusion. Une écoute notée exige un fichier validé adapté et ne se déduit pas de la seule disponibilité d’une référence de dialogue.
 - **Compte distant** : implémenter un adaptateur de stockage et une stratégie de conflit ; ne pas confondre les identifiants de contenu et ceux d’un utilisateur.
 
 ## Construction et hébergement

@@ -40,7 +40,7 @@ export function renderAnswerControls(exercise: Exercise, draft: AnswerDraft, dis
   return EXERCISE_RENDERERS[exercise.type](exercise, draft, disabled);
 }
 export function renderTask(exercise: Exercise, draft: AnswerDraft, disabled = false, assessment = false): string {
-  return `<div class="ma-task-type" data-exercise-id="${e(exercise.id)}">${TYPE_LABELS[exercise.type]}</div>${exercise.dialogue?.length ? renderDialogue(exercise.dialogue, { showTranslationControl: !assessment || disabled }) : exercise.context ? `<div class="ma-exercise-context">${e(exercise.context).replace(/\n/g, '<br>')}</div>` : ''}<h2 id="ma-question">${e(exercise.question)}</h2><div class="ma-answer-controls">${renderAnswerControls(exercise, draft, disabled)}</div>`;
+  return `<div class="ma-task-type" data-exercise-id="${e(exercise.id)}">${TYPE_LABELS[exercise.type]}</div>${exercise.dialogue?.length ? renderDialogue(exercise.dialogue, { sceneId: exercise.id, showTranslationControl: !assessment || disabled }) : exercise.context ? `<div class="ma-exercise-context">${e(exercise.context).replace(/\n/g, '<br>')}</div>` : ''}<h2 id="ma-question">${e(exercise.question)}</h2><div class="ma-answer-controls">${renderAnswerControls(exercise, draft, disabled)}</div>`;
 }
 export function answerValue(exercise: Exercise, draft: AnswerDraft): string | string[] | Record<string, string> {
   if (exercise.type === 'order') return draft.ordered.map(index => tokensFor(exercise)[index]);

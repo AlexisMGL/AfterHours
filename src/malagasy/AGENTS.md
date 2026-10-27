@@ -86,9 +86,18 @@ Lire ce fichier avant toute évolution de l’app ou de son intégration au cata
 
 ## Audio et oral
 
-- Préférer des enregistrements natifs fiables, autorisés, transcrits et contrôlés ; une TTS doit réellement prendre en charge le malgache et être vérifiée.
+- **Priorité utilisateur du 27 octobre 2026 : faire réciter les dialogues par une voix numérique malgache**, pour donner de la vie aux leçons et couvrir les phrases que l’on ne trouvera pas toutes dans une banque d’enregistrements. Cette demande remplace le choix intermédiaire de se limiter aux huit références humaines disponibles.
+- Utiliser un modèle qui prend réellement en charge le malgache, avec sa provenance et sa licence. Ne jamais présenter une TTS française/anglaise comme du malgache ni promettre une prononciation « toujours correcte » à partir du seul nom du modèle.
 - Prévoir lecture, pause, reprise, relecture, vitesse lente, chargement, erreur et muet via le manifeste audio et son service. Une écoute doit réellement jouer un asset valide avant sa notation.
-- Aucun enregistrement linguistique vérifié n’est actuellement distribué ; les sons de réponse sont des effets d’interface. Les exercices restent écrits, sans reconnaissance vocale ni notation simulée de prononciation.
+- Générer des fichiers de phrases entières en préparation du contenu, puis les servir avec le site statique : le joueur ne doit pas avoir besoin d’un compte Cloud, d’une clé ou d’un appel payant à chaque lecture. Le générateur doit permettre d’étendre le corpus lors de l’ajout de futures phrases.
+- Les huit références humaines (`Salama`, `Misaotra`, `Veloma`, `Azafady`, `Tonga soa`, `Tompoko`, `Eny`, `Tsia`) restent des références ou un repli documenté, pas une limite qui condamne toutes les autres répliques au silence.
+- Lire automatiquement une réplique nouvellement visible disposant d’un fichier autorisé correspondant à la phrase entière, après une action du joueur. Un rerendu, un choix de réponse, l’ouverture d’une traduction ou le passage muet/son ne doit pas relancer les répliques déjà montrées.
+- Proposer un bouton haut-parleur accessible dans les bulles pour rejouer la réplique. Une relecture interrompt proprement la lecture précédente ; aucun chevauchement. Arrêter les voix en quittant la scène, la question ou l’app, et respecter immédiatement le muet.
+- La correspondance porte sur **la réplique entière**, avec seulement une normalisation typographique sûre. Ne pas assembler des mots isolés ou découper des sons pour simuler une phrase native. Les blancs d’exercice et les points de suspension ne doivent pas révéler oralement une réponse manquante.
+- Une voix masculine et une voix féminine sont souhaitées si un modèle ou des interprètes fiables les proposent réellement. Un modèle à un seul locuteur n’en fournit pas deux : ne pas modifier sa hauteur pour fabriquer une fausse paire, ni déduire le genre d’un pseudonyme. Une même voix numérique peut accompagner les deux personnages en l’expliquant dans les crédits.
+- Distinguer une sortie `synthetic` / `model-generated`, une référence `published-pronunciation` et une vraie relecture `native-speaker-reviewed`. Un test de décodage, de durée ou d’amplitude ne certifie pas l’accent ou la naturalité ; ne pas marquer les sorties synthétiques comme validées par un locuteur natif.
+- Respecter la licence du modèle et des fichiers. En particulier, MMS est sous CC BY-NC 4.0 : ne pas lui attribuer des droits commerciaux qu’il n’accorde pas. Conserver la provenance, la révision du modèle et les paramètres utiles pour régénérer la banque.
+- La lecture de référence accompagne encore des exercices écrits : elle n’attribue pas à elle seule de maîtrise d’écoute ou de prononciation. Pas de reconnaissance vocale ou de notation orale simulée. Les attributions et la couverture détaillée restent dans « Sources & crédits ».
 
 ## Architecture, sauvegarde et extensions
 

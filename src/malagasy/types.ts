@@ -23,6 +23,7 @@ export interface LessonNote { title: string; body: string; example?: string; tra
 export type CharacterId = 'lova' | 'mia';
 export interface DialogueTurn {
   speaker: CharacterId; text: string; translation: string; highlight?: string;
+  audioId?: string;
 }
 export interface DialogueScene {
   id: string; setting: string; turns: DialogueTurn[];
@@ -50,7 +51,11 @@ export interface Exercise {
 }
 export interface AudioAsset {
   id: string; url: string; sourceId: string; transcript: string;
-  status: 'verified' | 'pending';
+  status: 'verified' | 'pending' | 'synthetic';
+  character?: CharacterId | 'any';
+  performer?: string;
+  verification?: 'published-pronunciation' | 'native-speaker-reviewed' | 'model-generated';
+  model?: string;
 }
 export interface Content {
   worlds: World[]; units: Unit[]; lessons: Lesson[]; exercises: Exercise[];

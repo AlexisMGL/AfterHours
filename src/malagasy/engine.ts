@@ -275,6 +275,7 @@ export function validateContent(content: Content): string[] {
   for (const asset of content.audio) {
     refs(asset.id, 'sources', [asset.sourceId]);
     if (asset.status === 'verified' && (!asset.url || !asset.transcript)) errors.push(`${asset.id}: audio vérifié incomplet`);
+    if (asset.status === 'synthetic' && (!asset.url || !asset.transcript || !asset.model || asset.verification !== 'model-generated')) errors.push(`${asset.id}: provenance de synthèse incomplète`);
   }
   cycles(content.worlds, 'worlds'); cycles(content.lessons, 'lessons'); cycles(content.concepts, 'concepts');
   // A traversal can accumulate sibling lessons that the real learner was never required to take.
