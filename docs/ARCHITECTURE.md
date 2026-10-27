@@ -19,7 +19,9 @@ Malagasy Adventure est la quatrième expérience du dépôt Afterhours. Elle uti
 | `src/malagasy/audio.ts` | Audio linguistique vérifié et effets de réponse synthétisés localement. |
 | `src/malagasy/dialogue-audio.ts` | File de lecture des répliques, relecture, annulation, muet et gestion des politiques audio du navigateur. |
 | `src/malagasy/voice-bank.ts`, `voice-recordings.ts` | Correspondance exacte des répliques et références humaines ; la banque numérique reste distincte de leur validation linguistique. |
-| `src/malagasy/synthetic-voices.ts`, `public/malagasy/voices/mms/` | Registre des 35 énoncés numériques et WAV locaux avec manifeste de provenance. |
+| `src/malagasy/synthetic-voices.ts`, `public/malagasy/voices/mms/` | Registre des 52 énoncés numériques (dialogues et sélections malgaches) et WAV locaux avec manifeste de provenance. |
+| `src/malagasy/voice-profiles.ts`, `scripts/generate-malagasy-profiles.mjs` | Timbre Mia relevé hors ligne, tempo inchangé, manifeste des dérivés. |
+| `src/malagasy/spoken-selections.ts` | Sélections explicitement malgaches ; les choix français ne sont pas lus. |
 | `scripts/generate-malagasy-mms.mjs` | Génération auteur locale depuis les dialogues, sans clé ni moteur TTS dans le navigateur. |
 | `src/malagasy/recording-references.json`, `public/malagasy/voices/` | Métadonnées de provenance, licences et fichiers originaux distribués localement. |
 | `src/malagasy/voice-plan.json`, `scripts/malagasy-voices.mjs` | Inventaire des phrases à enregistrer et outil hors ligne facultatif ; les brouillons restent `pending`. |
@@ -50,7 +52,7 @@ Les fonctions des moteurs ne dépendent pas du DOM, de `localStorage` ou de l’
 
 `recordingForTurn` relie un tour à un fichier `AudioAsset` uniquement lorsque la transcription correspond à l’énoncé complet. Les huit expressions humaines restent des références et un repli documenté, sans découpage ni collage de mots pour fabriquer d’autres phrases. Le personnage `any` permet de partager une référence pour Lova et Mia sans prétendre fournir deux genres de voix.
 
-La demande du 27 octobre donne la priorité à une banque de **phrases synthétisées en malgache**, préparées hors ligne puis servies statiquement. La banque MMS actuelle contient 35 énoncés distincts issus des dialogues, soit 1 691 076 octets de WAV mono 16 kHz. Le modèle MMS malgache original et sa conversion ONNX ont un seul locuteur, sans paire masculine/féminine simulée. La génération n’est pas un appel TTS payant à chaque visite et n’impose aucun compte Cloud au joueur.
+La demande du 27 octobre donne la priorité à une banque de **phrases synthétisées en malgache**, préparées hors ligne puis servies statiquement. La banque MMS actuelle contient 52 énoncés distincts issus des dialogues et des sélections malgaches, soit 2 165 232 octets de WAV mono 16 kHz. Le modèle reste monolocuteur. À la demande explicite de l’utilisateur, 51 variantes relèvent le timbre de Mia de deux demi-tons à tempo inchangé, sans revendiquer une seconde voix féminine native. Azafady seul privilégie la référence humaine intacte pour corriger la synthèse signalée comme fautive. La génération n’est pas un appel TTS payant à chaque visite et n’impose aucun compte Cloud au joueur.
 
 `scripts/generate-malagasy-mms.mjs` charge un runtime auteur isolé dans `.tools/mms-runtime`, garde les poids FP32 dans `.tools/mms-cache`, extrait les phrases complètes et écrit le manifeste public ainsi que le registre TypeScript. Les fichiers existants sont conservés si leurs transcriptions et empreintes correspondent ; un changement de texte doit être suivi d’une régénération et des tests de couverture. Les ellipses de réponse ne sont pas prononcées comme une phrase remplie.
 
@@ -59,6 +61,8 @@ La demande du 27 octobre donne la priorité à une banque de **phrases synthéti
 Les références `published-pronunciation` sont documentées par leur publication et leur transcription ; elles ne sont pas rebaptisées `native-speaker-reviewed` sans contrôle linguistique réalisé. Une sortie de modèle reste identifiée `synthetic` / `model-generated`, distincte d’un fichier validé pour une évaluation d’écoute. Le lecteur de dialogue ne met pas à jour la maîtrise orale. Les liens de licence, notamment la restriction non commerciale de MMS, et la couverture apparaissent seulement dans « Sources & crédits ».
 
 La lecture utilise les fichiers locaux sans secret ni appel TTS à l’exécution. Le script Cloud reste un outil facultatif de préparation : ses sorties sont des brouillons `pending`. La banque numérique locale peut diffuser des sorties explicitement synthétiques sans les déclarer validées par un enseignant. Voir [MALAGASY_VOICES.md](MALAGASY_VOICES.md).
+
+`spoken-selections.ts` expose les sélections explicitement marquées malgaches (`selectionLanguage` / `spokenSelections`). `recordingForSelection` recherche leur fichier entier ; le clic passe par le même lecteur interruptible que les dialogues. Un choix français reste silencieux ; une mauvaise sélection malgache est lue sans être validée automatiquement.
 
 ## Sauvegarde et sécurité d’import
 

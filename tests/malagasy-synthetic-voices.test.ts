@@ -4,7 +4,9 @@ import { resolve, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { CONTENT } from '../src/malagasy/content';
 import { SYNTHETIC_RECORDINGS, SYNTHETIC_VOICE_SOURCES } from '../src/malagasy/synthetic-voices';
-import { recordingForTurn } from '../src/malagasy/voice-bank';
+import { recordingForTurn, recordingForSelection } from '../src/malagasy/voice-bank';
+import { PROFILE_RECORDINGS, PROFILE_VOICE_SOURCES } from '../src/malagasy/voice-profiles';
+import { spokenSelectionsForExercise } from '../src/malagasy/spoken-selections';
 import { normalizeDialogueTranscript } from '../src/malagasy/dialogue-audio';
 import { createProgress, introduceLesson, selectMixedExercises } from '../src/malagasy/engine';
 import type { AudioAsset, DialogueTurn, Exercise } from '../src/malagasy/types';
@@ -56,19 +58,87 @@ describe('Complete generated Malagasy dialogue voices', () => {
     const completeTurns = allTurns().filter(complete);
     const unique = new Set(completeTurns.map(turn => normalizeDialogueTranscript(turn.text)));
     expect(SYNTHETIC_RECORDINGS.length).toBeGreaterThan(20);
+    for (const exercise of CONTENT.exercises) for (const text of spokenSelectionsForExercise(exercise)) unique.add(normalizeDialogueTranscript(text));
     expect(SYNTHETIC_RECORDINGS).toHaveLength(unique.size);
     expect(manifest.recordings).toHaveLength(unique.size);
     for (const turn of completeTurns) {
       const asset = recordingForTurn(turn);
       expect(asset, `${turn.speaker}: ${turn.text}`).toBeDefined();
-      expect(asset!.status, turn.text).toBe('synthetic');
-      expect(asset!.verification).toBe('model-generated');
+      const corrected = normalizeDialogueTranscript(turn.text) === 'azafady';
+      expect(asset!.status, turn.text).toBe(corrected ? 'verified' : 'synthetic');
+      expect(asset!.verification).toBe(corrected ? 'published-pronunciation' : 'model-generated');
       expect(normalizeDialogueTranscript(asset!.transcript)).toBe(normalizeDialogueTranscript(turn.text));
     }
     const quotes = completeTurns.filter(turn => /[«»]/u.test(turn.text));
     expect(quotes.length).toBeGreaterThan(0);
     for (const turn of quotes) expect(recordingForTurn(turn)?.status).toBe('synthetic');
     for (const turn of allTurns().filter(turn => !complete(turn))) expect(recordingForTurn(turn), turn.text).toBeUndefined();
+  });
+
+  it('pronounces all authored Malagasy selections, including distractors, but never guesses French or missing text', () => {
+    let spoken = 0, silent = 0;
+    for (const exercise of CONTENT.exercises) {
+      const authored = spokenSelectionsForExercise(exercise);
+      const visible = [...exercise.choices ?? [], ...exercise.tokens ?? [], ...exercise.pairs?.flatMap(pair => [pair.left, pair.right]) ?? []];
+      for (const text of visible) {
+        const asset = recordingForSelection(exercise, text);
+        if (authored.includes(text)) {
+          spoken++;
+          expect(asset, `${exercise.id}: ${text}`).toBeDefined();
+          expect(normalizeDialogueTranscript(asset!.transcript)).toBe(normalizeDialogueTranscript(text));
+        } else { silent++; expect(asset, `${exercise.id}: ${text}`).toBeUndefined(); }
+      }
+      expect(recordingForSelection(exercise, 'un texte non proposé')).toBeUndefined();
+    }
+    expect(spoken).toBeGreaterThan(80); expect(silent).toBeGreaterThan(40);
+    const mixed = CONTENT.exercises.find(exercise => exercise.id === 'exercise-03-01-b')!;
+    expect(recordingForSelection(mixed, 'mpiofana')).toBeDefined();
+    expect(recordingForSelection(mixed, 'Un verbe être écrit')).toBeUndefined();
+  });
+
+  it('uses the unmodified human Azafady correction in both characters and selected answers', () => {
+    for (const speaker of ['lova', 'mia'] as const) {
+      const corrected = recordingForTurn({ speaker, text: 'AZAFADY!', translation: '' });
+      expect(corrected?.id).toBe('audio-commons-azafady');
+      expect(corrected?.url).toBe('/malagasy/voices/commons-azafady.ogg');
+      expect(corrected?.processing).toBeUndefined();
+    }
+    const exercise = CONTENT.exercises.find(item => item.id === 'exercise-01-01-c')!;
+    expect(recordingForSelection(exercise, 'Azafady')?.id).toBe('audio-commons-azafady');
+    expect(recordingForTurn({ speaker: 'mia', text: 'Azafady, …', translation: '' })).toBeUndefined();
+  });
+
+  it('ships a higher Mia timbre with actual different audio, unchanged duration and honest model provenance', () => {
+    const profiles = JSON.parse(readFileSync(resolve('public/malagasy/voices/profiles/manifest.json'), 'utf8')) as {
+      pitchSemitones: number; tempo: number; nativeSpeakerReviewed: boolean;
+      recordings: (AudioAsset & { sha256: string; bytes: number; duration: number; sourceSha256: string })[];
+    };
+    expect(PROFILE_RECORDINGS).toHaveLength(SYNTHETIC_RECORDINGS.length - 1);
+    expect(profiles.recordings).toHaveLength(PROFILE_RECORDINGS.length);
+    expect(profiles.nativeSpeakerReviewed).toBe(false);
+    for (const asset of PROFILE_RECORDINGS) {
+      expect(asset.character).toBe('mia');
+      expect(asset.status).toBe('synthetic'); expect(asset.verification).toBe('model-generated');
+      expect(asset.processing?.pitchSemitones).toBe(2); expect(asset.processing?.tempo).toBe(1);
+      const original = manifest.recordings.find(entry => entry.id === asset.processing?.originalAssetId)!;
+      const profile = profiles.recordings.find(entry => entry.id === asset.id)!;
+      expect(profile.sourceSha256).toBe(original.sha256);
+      const bytes = readFileSync(resolve('public', asset.url.slice(1)));
+      expect(bytes.length).toBe(profile.bytes);
+      expect(createHash('sha256').update(bytes).digest('hex')).toBe(profile.sha256);
+      expect(profile.sha256).not.toBe(original.sha256);
+      const decoded = waveContent(bytes);
+      expect(decoded.sampleRate).toBe(16000);
+      expect(decoded.samples.length / decoded.sampleRate).toBeCloseTo(original.duration, 5);
+      let energy = 0, peak = 0;
+      for (const sample of decoded.samples) { energy += sample * sample; peak = Math.max(peak, Math.abs(sample)); }
+      expect(peak).toBeLessThan(.99); expect(Math.sqrt(energy / decoded.samples.length)).toBeGreaterThan(.001);
+      const mia = recordingForTurn({ speaker: 'mia', text: asset.transcript, translation: '' });
+      const lova = recordingForTurn({ speaker: 'lova', text: asset.transcript, translation: '' });
+      expect(mia?.id).toBe(asset.id); expect(lova?.id).toBe(original.id);
+      expect(CONTENT.audio.find(entry => entry.id === asset.id)).toEqual(asset);
+      expect(PROFILE_VOICE_SOURCES.some(source => source.id === asset.sourceId)).toBe(true);
+    }
   });
 
   it('ships playable non-silent PCM audio whose actual bytes and samples match the generation manifest', () => {

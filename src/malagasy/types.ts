@@ -44,6 +44,8 @@ export type ExerciseType = 'choice' | 'match' | 'order' | 'cloze' | 'translate' 
 export interface Exercise {
   id: string; type: ExerciseType; prompt: string; context?: string;
   question: string; answers: string[]; choices?: string[];
+  /** Only explicitly authored Malagasy selections may be pronounced. */
+  selectionLanguage?: 'mg'; spokenSelections?: string[];
   tokens?: string[]; pairs?: { left: string; right: string }[];
   explanation: string; concepts: string[]; sourceIds: string[];
   difficulty: number; audioId?: string;
@@ -56,6 +58,7 @@ export interface AudioAsset {
   performer?: string;
   verification?: 'published-pronunciation' | 'native-speaker-reviewed' | 'model-generated';
   model?: string;
+  processing?: { originalAssetId: string; pitchSemitones: number; tempo: number };
 }
 export interface Content {
   worlds: World[]; units: Unit[]; lessons: Lesson[]; exercises: Exercise[];

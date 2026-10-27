@@ -4,13 +4,15 @@ Le lecteur de dialogue utilise des fichiers de langue identifiés dans le manife
 
 La demande utilisateur du **27 octobre 2026** est de faire réciter les dialogues par une **voix numérique malgache**, afin de couvrir les phrases entières et de donner de la vie aux leçons. Elle remplace le choix intermédiaire de se limiter aux huit références humaines disponibles. Aucun modèle ne garantit ici que chaque syllabe, nom propre et intonation sera toujours correcte ; une relecture malgachophone reste nécessaire pour valider la prononciation.
 
-Une voix masculine et une voix féminine sont souhaitables si le modèle fournit réellement deux voix de qualité. Le modèle MMS malgache expose un seul locuteur : ne pas modifier artificiellement sa hauteur ni annoncer deux voix distinctes sur cette base.
+Le dernier retour utilisateur demande explicitement une voix plus aiguë pour Mia. Il autorise désormais un traitement de hauteur : les fichiers de Mia sont relevés de **deux demi-tons**, avec tempo conservé. Le modèle MMS expose toujours un seul locuteur ; ce timbre traité ne doit pas être annoncé comme une seconde voix féminine native.
 
 ## Génération locale de phrases entières
 
 La piste mise en œuvre pour ne pas demander de compte Cloud utilise le modèle malgache [facebook/mms-tts-mlg](https://huggingface.co/facebook/mms-tts-mlg), avec sa [conversion ONNX](https://huggingface.co/elloza/mms-tts-mlg-onnx). La [configuration originale](https://huggingface.co/facebook/mms-tts-mlg/raw/main/config.json) indique `num_speakers: 1` et un échantillonnage de 16 kHz. La conversion ne transforme pas ce modèle monolocuteur en une paire masculine/féminine.
 
-La banque générée contient **35 énoncés complets distincts**, stockés dans `public/malagasy/voices/mms/` : 1 691 076 octets de WAV mono 16 kHz, avec métadonnées dans `manifest.json` et registre de lecture dans `src/malagasy/synthetic-voices.ts`. Les mêmes énoncés sont partagés entre les personnages sans dupliquer les fichiers. Ce lot est monolocuteur ; il ne constitue pas deux voix de genres différents.
+La banque de base contient **52 énoncés distincts** : les 35 répliques complètes initiales et 17 mots ou réponses supplémentaires déjà présents dans les exercices. Les WAV mono 16 kHz occupent 2 165 232 octets dans `public/malagasy/voices/mms/`, avec manifeste de provenance et registre `synthetic-voices.ts`. La sortie synthétique Azafady est conservée pour traçabilité mais écartée de la lecture automatique : la référence humaine non modifiée de Manantiana la remplace, pour les deux personnages et les réponses sélectionnées.
+
+Les **51 variantes de Mia** occupent 2 137 418 octets dans `public/malagasy/voices/profiles/`. Le manifeste et `voice-profiles.ts` relient chaque variante à son fichier de base, son empreinte et son traitement. Azafady reste volontairement la référence humaine intacte. Le filtre [FFmpeg Rubber Band](https://ffmpeg.org/ffmpeg-filters.html#rubberband) relève la hauteur de deux demi-tons, préserve les formants et conserve le tempo et la durée ; le navigateur joue les fichiers à vitesse normale.
 
 Chaque phrase complète a été synthétisée pendant la préparation du contenu ; le manifeste conserve le modèle, sa révision, l’empreinte de ses poids, le texte, le volume appliqué et l’empreinte de chaque fichier. Le modèle n’a pas à être téléchargé par chaque joueur et aucune clé, session Cloud ou génération payante à la lecture n’est nécessaire. La même procédure peut régénérer la banque lorsque de nouvelles phrases sont rédigées.
 
@@ -18,7 +20,7 @@ Le modèle MMS est sous **CC BY-NC 4.0**, avec restriction d’usage commercial.
 
 Une sortie diffusée comme `synthetic` avec la provenance `model-generated` est une voix générée, **pas une prononciation validée par un locuteur natif**. `pending` reste réservé aux brouillons non activés ; `native-speaker-reviewed` ne peut être attribué qu’après une relecture réellement réalisée. Les contrôles de décodage, d’amplitude et de durée ne suffisent pas à changer ce statut linguistique.
 
-Les 35 fichiers ont été effectivement produits ; leur couverture et leur lecture restent à distinguer d’une validation linguistique. Les blancs d’exercice et les phrases à points de suspension ne sont pas synthétisés comme des réponses complétées. Les mots cités pour expliquer la grammaire conservent leurs guillemets dans la transcription de l’app ; le modèle prononce le mot sans lire ces marques typographiques, sans prétendre qu’un pronom isolé devient une réplique naturelle.
+Les fichiers de base et variantes de Mia ont été effectivement produits ; leur couverture et leur lecture restent à distinguer d’une validation linguistique. Les blancs d’exercice et les phrases à points de suspension ne sont pas synthétisés comme des réponses complétées. Les mots cités pour expliquer la grammaire conservent leurs guillemets dans la transcription de l’app ; le modèle prononce le mot sans lire ces marques typographiques, sans prétendre qu’un pronom isolé devient une réplique naturelle.
 
 ## Régénérer la banque MMS
 
@@ -27,15 +29,17 @@ Depuis la racine du dépôt :
 ```powershell
 npm install --prefix .tools/mms-runtime @huggingface/transformers@3.8.1
 node scripts/generate-malagasy-mms.mjs
+npm install --prefix .tools/voice-processing ffmpeg-static@5.3.0
+node scripts/generate-malagasy-profiles.mjs
 ```
 
 Le runtime auteur est installé dans `.tools/`, ignoré par Git, sans ajouter de dépendance au site de production. Le modèle FP32 est téléchargé dans `.tools/mms-cache` et son empreinte est vérifiée. Le bundle Netlify ne contient pas ces poids ; il sert les petits fichiers WAV déjà générés.
 
-Le générateur extrait l’inventaire des dialogues actuels depuis `CONTENT`, déduplique les transcriptions identiques et produit une phrase entière par fichier. Il garde les fichiers dont le texte et l’empreinte correspondent au manifeste précédent. `--force` demande leur régénération. Après une modification du contenu, régénérer puis exécuter les tests de couverture et de lecture ; ne pas déclarer les nouvelles phrases couvertes sur le seul fait qu’elles sont présentes dans un plan JSON.
+Le générateur extrait l’inventaire des dialogues et des sélections explicitement marquées malgaches depuis `CONTENT`, déduplique les transcriptions identiques et produit une phrase entière par fichier. Il garde les fichiers dont le texte et l’empreinte correspondent au manifeste précédent. `--force` demande leur régénération. Après une modification du contenu, régénérer puis exécuter les tests de couverture et de lecture ; ne pas déclarer les nouvelles phrases couvertes sur le seul fait qu’elles sont présentes dans un plan JSON.
 
 ## Lecture dans l’app
 
-Le lecteur lance une nouvelle réplique couverte après une action du joueur et propose un bouton haut-parleur pour la rejouer, ainsi qu’une lecture lente. Le rerendu d’un choix, l’ouverture d’une traduction ou le retour du son ne doit pas provoquer de répétition automatique. Le muet et la sortie d’une scène annulent la lecture ; la relecture d’une bulle interrompt proprement la voix précédente.
+Le lecteur lance une nouvelle réplique couverte après une action du joueur et propose un bouton haut-parleur pour la rejouer, ainsi qu’une lecture lente. Le clic sur une sélection malgache prononce la sélection elle-même, correcte ou incorrecte ; un nouveau clic peut la rejouer. Les associations et banques de mots sont couvertes. `selectionLanguage: 'mg'` marque les ensembles entièrement malgaches ; `spokenSelections` sélectionne uniquement les mots malgaches dans un ensemble mixte. Aucune langue n’est déduite de la bonne réponse. Les choix français, le simple rerendu, l’ouverture d’une traduction et le retour du son ne relancent pas les voix. Le muet et la sortie d’une scène annulent la lecture ; la relecture d’une bulle interrompt proprement la voix précédente.
 
 La correspondance porte sur le texte complet. Aucun mot enregistré n’est découpé ou recollé pour fabriquer une phrase. Si le navigateur bloque l’autoplay, le bouton haut-parleur permet une nouvelle tentative explicite ; les exercices restent utilisables si la lecture échoue.
 
@@ -134,7 +138,7 @@ node --test scripts/malagasy-voices.test.mjs
 
 Ces tests couvrent l’inventaire en attente de contrôle, les fichiers et IDs invalides, le format WAV, la relance bornée et l’absence de fuite de jeton dans les erreurs. Le réseau est simulé : ils ne prétendent pas valider l’accent d’un fournisseur ni l’accès à un compte Cloud réel.
 
-## Vérification finale du 27 octobre 2026
+## Historique : premier lot du 27 octobre 2026, avant les variantes Mia
 
 | Contrôle | Résultat |
 | --- | --- |
@@ -151,8 +155,23 @@ Ces contrôles établissent le fonctionnement et la couverture technique, **pas 
 
 Pour essayer : lancer `start-local.cmd`, puis ouvrir **http://127.0.0.1:5173/malagasy-adventure** et commencer ou rejouer une partie du parcours. La voix accompagne les bulles ; le haut-parleur et le bouton 0,75× restent disponibles pour réécouter.
 
-## Vérification navigateur du 27 octobre 2026
+## Historique : vérification navigateur du premier lot
 
 Les six tests dédiés de `e2e/malagasy-dialogue-voices.spec.ts` ont été exécutés sur les **véritables WAV MMS** servis localement, sans remplacer leur lecture. Ils vérifient le départ automatique après une action du joueur, le bouton de relecture, la vitesse 0,75×, la file sans chevauchement, l’arrêt à la navigation, le muet et l’absence de répétition liée aux rerendus. Deux scénarios contrôlent séparément l’échec d’un fichier et le refus d’autoplay par le navigateur, avec reprise manuelle et maintien des exercices utilisables.
 
 La suite Chromium complète a ensuite réussi **59 tests sur 59**, en un passage sans échec ni relance. Elle comprend ces six scénarios de voix, les effets sonores, le parcours des neuf leçons et trois quiz, les sauvegardes, les écrans mobiles et les trois jeux existants. Cela vérifie le fonctionnement du lecteur ; ce résultat ne remplace toujours pas une validation de la prononciation par un malgachophone.
+
+## Dernier ajustement : Azafady, timbre de Mia et réponses parlées
+
+Le retour utilisateur signale un Azafady synthétique entendu comme « azalafy », demande davantage de contraste pour Mia et la lecture des sélections malgaches. La résolution de voix privilégie désormais `audio-commons-azafady`, fichier humain original non modifié, pour ce mot seul. Les autres répliques de Mia et les réponses sélectionnées utilisent le profil à +2 demi-tons ; Lova conserve le timbre de base. Ce réglage est un traitement du même modèle, sans nouvelle locutrice native revendiquée.
+
+Les sélections sont prononcées avant validation, qu’elles soient correctes ou incorrectes. Elles peuvent être rejouées en cliquant à nouveau. Les associations et les mots à placer sont également couverts. Les choix français restent silencieux, y compris dans une question mêlant deux mots malgaches et un distracteur français. Le lecteur commun interrompt la lecture précédente ; le muet et la navigation annulent la voix. Aucun score ni compétence orale n’est accordé par cette lecture.
+
+Vérification effectivement exécutée le 27 octobre 2026 :
+
+- `npm test` : **334 tests réussis**, dans 16 fichiers ; couverture des transcriptions, corrections, choix, provenance et fichiers réellement distribués.
+- `npm run test:e2e` : **60 tests Chromium réussis**, sans échec ni relance, dont sept scénarios audio utilisant les vrais fichiers. Le parcours des neuf leçons, les quiz, sauvegardes, mobiles, crédits et trois autres jeux passe aussi.
+- `npm run build` : TypeScript strict et Vite réussis. Les **111 fichiers vocaux** copiés dans `dist/` correspondent aux tailles et empreintes des manifestes, pour 4 643 318 octets au total, références humaines incluses.
+- Contrôle des variantes : fichiers différents de la base, signal non silencieux et sans saturation, durée identique à l’échantillon près. Une estimation indépendante de fréquence fondamentale sur trois énoncés retrouve une hausse d’environ 1,75 à 2,25 demi-tons. Cette mesure ne valide pas la prononciation.
+
+Les retours et règles de maintenance sont conservés dans [le fichier des agents propre à cette app](../src/malagasy/AGENTS.md). Les nouvelles attributions et explications de traitement restent dans « Sources & crédits ».

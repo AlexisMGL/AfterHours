@@ -46,6 +46,10 @@ Chaque activité peut utiliser `Exercise.dialogue` pour prolonger l’échange. 
 
 Les `sourceIds` sont obligatoires en interne. Les liens, attributions et limites documentaires sont affichés uniquement dans « Sources & crédits », jamais au fil de la conversation ou dans le feedback.
 
+## Prononcer les sélections
+
+Déclarer `selectionLanguage: 'mg'` lorsque les choix, les jetons ou la colonne gauche d’association sont tous malgaches. Pour une question mixte, fournir `spokenSelections` avec seulement les libellés malgaches exacts. Ne pas marquer les distracteurs français et ne pas déduire la langue de la bonne réponse. Régénérer la banque MMS puis les profils Mia avec les scripts documentés dans [MALAGASY_VOICES.md](MALAGASY_VOICES.md). Chaque sélection lue doit avoir son propre fichier entier ; ne pas assembler des extraits.
+
 ## Ajouter un monde
 
 Compléter sa fiche dans `worlds.ts` : objectifs lexicaux, grammaticaux et pratiques, thème culturel, prérequis, durée et coordonnées approximatives pour la carte. Ajouter ensuite unités, leçons, concepts, exercices et sources. Tant que les leçons n’existent pas, conserver `implemented: false`. Un monde disponible et un monde terminé sont deux états distincts.

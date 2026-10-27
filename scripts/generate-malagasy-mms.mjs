@@ -5,6 +5,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createServer } from 'vite';
+// The same explicit language contract drives authoring and browser selection playback.
 
 const MODEL = 'elloza/mms-tts-mlg-onnx';
 const MODEL_REVISION = 'd7a0998aec609849544bbd5813db358948f5b0f0';
@@ -17,7 +18,12 @@ export function normalizeTranscript(text) {
 }
 export function utteranceInventory(content) {
   const turns = [...content.lessons.flatMap(lesson => (lesson.scenes ?? []).flatMap(scene => scene.turns)),
-    ...content.exercises.flatMap(exercise => exercise.dialogue ?? [])];
+    ...content.exercises.flatMap(exercise => exercise.dialogue ?? []),
+    ...content.exercises.flatMap(exercise => {
+      const selections = exercise.spokenSelections ?? (exercise.selectionLanguage === 'mg'
+        ? exercise.choices ?? exercise.tokens ?? exercise.pairs?.map(pair => pair.left) ?? [] : []);
+      return selections.map(text => ({ text }));
+    })];
   const unique = new Map();
   for (const turn of turns) {
     if (!turn.text.trim() || /[…_]|\.{3}/u.test(turn.text)) continue;

@@ -351,6 +351,176 @@ export const SYNTHETIC_RECORDINGS: AudioAsset[] = [
     "verification": "model-generated",
     "character": "any",
     "model": "elloza/mms-tts-mlg-onnx"
+  },
+  {
+    "id": "audio-mms-b80dd87acd2d224f",
+    "url": "/malagasy/voices/mms/audio-mms-b80dd87acd2d224f.wav",
+    "sourceId": "mms-malagasy",
+    "transcript": "Veloma, tompoko.",
+    "status": "synthetic",
+    "verification": "model-generated",
+    "character": "any",
+    "model": "elloza/mms-tts-mlg-onnx"
+  },
+  {
+    "id": "audio-mms-bd27e09add2412ef",
+    "url": "/malagasy/voices/mms/audio-mms-bd27e09add2412ef.wav",
+    "sourceId": "mms-malagasy",
+    "transcript": "Tompoko",
+    "status": "synthetic",
+    "verification": "model-generated",
+    "character": "any",
+    "model": "elloza/mms-tts-mlg-onnx"
+  },
+  {
+    "id": "audio-mms-6d7e04068fa604f0",
+    "url": "/malagasy/voices/mms/audio-mms-6d7e04068fa604f0.wav",
+    "sourceId": "mms-malagasy",
+    "transcript": "soa",
+    "status": "synthetic",
+    "verification": "model-generated",
+    "character": "any",
+    "model": "elloza/mms-tts-mlg-onnx"
+  },
+  {
+    "id": "audio-mms-32ad1aca2ef116a4",
+    "url": "/malagasy/voices/mms/audio-mms-32ad1aca2ef116a4.wav",
+    "sourceId": "mms-malagasy",
+    "transcript": "Tonga",
+    "status": "synthetic",
+    "verification": "model-generated",
+    "character": "any",
+    "model": "elloza/mms-tts-mlg-onnx"
+  },
+  {
+    "id": "audio-mms-6f47b13a6e54769d",
+    "url": "/malagasy/voices/mms/audio-mms-6f47b13a6e54769d.wav",
+    "sourceId": "mms-malagasy",
+    "transcript": "anarako",
+    "status": "synthetic",
+    "verification": "model-generated",
+    "character": "any",
+    "model": "elloza/mms-tts-mlg-onnx"
+  },
+  {
+    "id": "audio-mms-7f488a3c244e6fda",
+    "url": "/malagasy/voices/mms/audio-mms-7f488a3c244e6fda.wav",
+    "sourceId": "mms-malagasy",
+    "transcript": "Lova",
+    "status": "synthetic",
+    "verification": "model-generated",
+    "character": "any",
+    "model": "elloza/mms-tts-mlg-onnx"
+  },
+  {
+    "id": "audio-mms-9390298f3fb0c5b1",
+    "url": "/malagasy/voices/mms/audio-mms-9390298f3fb0c5b1.wav",
+    "sourceId": "mms-malagasy",
+    "transcript": "no",
+    "status": "synthetic",
+    "verification": "model-generated",
+    "character": "any",
+    "model": "elloza/mms-tts-mlg-onnx"
+  },
+  {
+    "id": "audio-mms-05920ab4d50e402c",
+    "url": "/malagasy/voices/mms/audio-mms-05920ab4d50e402c.wav",
+    "sourceId": "mms-malagasy",
+    "transcript": "izy",
+    "status": "synthetic",
+    "verification": "model-generated",
+    "character": "any",
+    "model": "elloza/mms-tts-mlg-onnx"
+  },
+  {
+    "id": "audio-mms-df2459685e0465a1",
+    "url": "/malagasy/voices/mms/audio-mms-df2459685e0465a1.wav",
+    "sourceId": "mms-malagasy",
+    "transcript": "Frantsa",
+    "status": "synthetic",
+    "verification": "model-generated",
+    "character": "any",
+    "model": "elloza/mms-tts-mlg-onnx"
+  },
+  {
+    "id": "audio-mms-0bd0bc77b21c0aa0",
+    "url": "/malagasy/voices/mms/audio-mms-0bd0bc77b21c0aa0.wav",
+    "sourceId": "mms-malagasy",
+    "transcript": "Avy",
+    "status": "synthetic",
+    "verification": "model-generated",
+    "character": "any",
+    "model": "elloza/mms-tts-mlg-onnx"
+  },
+  {
+    "id": "audio-mms-d6a7cd2a7371b1a1",
+    "url": "/malagasy/voices/mms/audio-mms-d6a7cd2a7371b1a1.wav",
+    "sourceId": "mms-malagasy",
+    "transcript": "any",
+    "status": "synthetic",
+    "verification": "model-generated",
+    "character": "any",
+    "model": "elloza/mms-tts-mlg-onnx"
+  },
+  {
+    "id": "audio-mms-96ee1c51404b0b4d",
+    "url": "/malagasy/voices/mms/audio-mms-96ee1c51404b0b4d.wav",
+    "sourceId": "mms-malagasy",
+    "transcript": "anaranao",
+    "status": "synthetic",
+    "verification": "model-generated",
+    "character": "any",
+    "model": "elloza/mms-tts-mlg-onnx"
+  },
+  {
+    "id": "audio-mms-3186da3e7e347683",
+    "url": "/malagasy/voices/mms/audio-mms-3186da3e7e347683.wav",
+    "sourceId": "mms-malagasy",
+    "transcript": "aiza",
+    "status": "synthetic",
+    "verification": "model-generated",
+    "character": "any",
+    "model": "elloza/mms-tts-mlg-onnx"
+  },
+  {
+    "id": "audio-mms-de77479652f7df3c",
+    "url": "/malagasy/voices/mms/audio-mms-de77479652f7df3c.wav",
+    "sourceId": "mms-malagasy",
+    "transcript": "Mpiofana",
+    "status": "synthetic",
+    "verification": "model-generated",
+    "character": "any",
+    "model": "elloza/mms-tts-mlg-onnx"
+  },
+  {
+    "id": "audio-mms-4bd2c412ba70847f",
+    "url": "/malagasy/voices/mms/audio-mms-4bd2c412ba70847f.wav",
+    "sourceId": "mms-malagasy",
+    "transcript": "ve",
+    "status": "synthetic",
+    "verification": "model-generated",
+    "character": "any",
+    "model": "elloza/mms-tts-mlg-onnx"
+  },
+  {
+    "id": "audio-mms-1b06e2003f8420d6",
+    "url": "/malagasy/voices/mms/audio-mms-1b06e2003f8420d6.wav",
+    "sourceId": "mms-malagasy",
+    "transcript": "ny",
+    "status": "synthetic",
+    "verification": "model-generated",
+    "character": "any",
+    "model": "elloza/mms-tts-mlg-onnx"
+  },
+  {
+    "id": "audio-mms-b65c597286364ff2",
+    "url": "/malagasy/voices/mms/audio-mms-b65c597286364ff2.wav",
+    "sourceId": "mms-malagasy",
+    "transcript": "tsy",
+    "status": "synthetic",
+    "verification": "model-generated",
+    "character": "any",
+    "model": "elloza/mms-tts-mlg-onnx"
   }
 ];
 
